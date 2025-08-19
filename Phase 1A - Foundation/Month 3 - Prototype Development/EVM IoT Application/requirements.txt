@@ -1,0 +1,6 @@
+# VoteGuard Pro EVM IoT Application - Python Dependencies
+pyqt5>=5.15.0  # or kivy>=2.0.0 for touchscreen UI
+requests>=2.28.0
+cryptography>=41.0.0
+protobuf>=4.25.0
+grpcio>=1.60.0
