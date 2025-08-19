@@ -6,13 +6,16 @@ class GPS {
 public:
     bool initialize() {
         std::cout << "[HW] Initializing GPS module..." << std::endl;
-        // TODO: Initialize GPS hardware
+        // Simulate GPS initialization
+        std::cout << "[HW] GPS module initialized successfully." << std::endl;
         return true;
     }
     
     std::string getLocation() {
         std::cout << "[HW] Retrieving GPS location..." << std::endl;
-        // TODO: Return current GPS coordinates
-        return "28.6139N, 77.2090E";
+        // Simulate GPS location retrieval
+        std::string location = "28.6139N, 77.2090E"; // Replace with actual GPS data
+        std::cout << "[HW] Current location: " << location << std::endl;
+        return location;
     }
 };

@@ -4,10 +4,12 @@ Language: Python (PyQt5)
 Handles: Aadhaar number input, biometric capture initiation
 """
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
+from PyQt5.QtCore import QStackedWidget
 
 class AadhaarEntryScreen(QWidget):
-    def __init__(self):
+    def __init__(self, stacked_widget: QStackedWidget):
         super().__init__()
+        self.stacked_widget = stacked_widget
         self.setWindowTitle("VoteGuard Pro - Aadhaar Entry")
         self.setGeometry(100, 100, 800, 600)
         self.init_ui()
@@ -23,6 +25,14 @@ class AadhaarEntryScreen(QWidget):
         self.aadhaar_input.setPlaceholderText("Enter 12-digit Aadhaar Number")
         layout.addWidget(self.aadhaar_input)
 
+        # Voter ID Input
+        self.voter_id_label = QLabel("Enter your Voter ID:")
+        layout.addWidget(self.voter_id_label)
+
+        self.voter_id_input = QLineEdit()
+        self.voter_id_input.setPlaceholderText("Enter Voter ID")
+        layout.addWidget(self.voter_id_input)
+
         # Submit Button
         self.submit_button = QPushButton("Submit")
         self.submit_button.clicked.connect(self.validate_aadhaar)
@@ -32,11 +42,12 @@ class AadhaarEntryScreen(QWidget):
 
     def validate_aadhaar(self):
         aadhaar_number = self.aadhaar_input.text()
-        if len(aadhaar_number) == 12 and aadhaar_number.isdigit():
-            QMessageBox.information(self, "Success", "Aadhaar Number Validated. Proceeding to Biometric Capture.")
-            # TODO: Transition to biometric capture screen
+        voter_id = self.voter_id_input.text()
+        if len(aadhaar_number) == 12 and aadhaar_number.isdigit() and voter_id:
+            QMessageBox.information(self, "Success", "Aadhaar and Voter ID Validated. Proceeding to Biometric Capture.")
+            self.stacked_widget.setCurrentIndex(1)  # Switch to Biometric Capture Screen
         else:
-            QMessageBox.warning(self, "Error", "Invalid Aadhaar Number. Please enter a valid 12-digit number.")
+            QMessageBox.warning(self, "Error", "Invalid Aadhaar Number or Voter ID. Please enter valid details.")
 
 if __name__ == "__main__":
     app = QApplication([])

@@ -6,13 +6,16 @@ class FingerprintSensor {
 public:
     bool initialize() {
         std::cout << "[HW] Initializing fingerprint sensor..." << std::endl;
-        // TODO: Initialize fingerprint sensor hardware
+        // Simulate fingerprint sensor initialization
+        std::cout << "[HW] Fingerprint sensor initialized successfully." << std::endl;
         return true;
     }
     
     bool captureFingerprint() {
         std::cout << "[HW] Capturing fingerprint..." << std::endl;
-        // TODO: Capture and return fingerprint template
+        // Simulate fingerprint capture
+        std::string fingerprint_template = "fingerprint_template_data";
+        std::cout << "[HW] Fingerprint captured: " << fingerprint_template << std::endl;
         return true;
     }
 };
