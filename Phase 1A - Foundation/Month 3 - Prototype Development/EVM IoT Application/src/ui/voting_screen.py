@@ -61,14 +61,13 @@ class VotingScreen(QWidget):
         self.vote_storage.store_vote(self.election_type, party['name'])
         QMessageBox.information(self, "Vote Cast", f"Your vote for {party['name']} has been recorded.")
 
-        # Reset UI for next voter
-        self.reset_ui()
+        # Transition back to Aadhaar Entry UI
+        self.transition_to_aadhaar_entry()
 
-    def reset_ui(self):
-        # Clear any dynamic elements and reset the screen for the next voter
-        self.timer_label.setText("")
-        self.timer.start(1000)  # Restart the timer
-        QMessageBox.information(self, "Next Voter", "Please prepare for the next voter.")
+    def transition_to_aadhaar_entry(self):
+        # Emit a signal or directly transition to Aadhaar Entry UI
+        QMessageBox.information(self, "Next Voter", "Returning to Aadhaar Entry for the next voter.")
+        self.parentWidget().setCurrentIndex(0)  # Assuming Aadhaar Entry is at index 0
 
 if __name__ == "__main__":
     app = QApplication([])

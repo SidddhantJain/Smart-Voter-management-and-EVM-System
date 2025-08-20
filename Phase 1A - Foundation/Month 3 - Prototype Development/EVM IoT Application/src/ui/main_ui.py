@@ -9,7 +9,12 @@ from biometric_capture import BiometricCaptureScreen
 import sys
 import os
 
-# Correct the backend path calculation
+# Ensure the `src` directory is in the Python path
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if src_path not in sys.path:
+    sys.path.append(src_path)
+
+# Adjust the backend path calculation
 backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
 if backend_path not in sys.path:
     sys.path.append(backend_path)
@@ -30,6 +35,29 @@ class MainUI(QStackedWidget):
 
         # Set initial screen
         self.setCurrentIndex(0)
+
+        # Set stylesheet
+        self.setStyleSheet("""
+            QStackedWidget {
+                background-color: #f0f0f0;
+            }
+            QLabel {
+                font-size: 16px;
+                color: #333;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                font-size: 14px;
+                margin: 4px 2px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
 
 if __name__ == "__main__":
     app = QApplication([])

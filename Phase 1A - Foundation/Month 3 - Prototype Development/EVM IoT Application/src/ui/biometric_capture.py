@@ -9,6 +9,7 @@ from PyQt5.QtGui import QImage, QPixmap
 import sys
 import os
 import cv2
+import numpy as np
 from PyQt5.QtCore import QTimer
 
 # Ensure the backend directory is in the Python path
@@ -65,6 +66,7 @@ class BiometricCaptureScreen(QWidget):
             QMessageBox.critical(self, "Camera Error", "Unable to access the camera.")
             return
         self.timer.start(30)
+        self.continuous_camera_monitoring()
 
     def update_frame(self):
         ret, frame = self.camera.read()
@@ -76,10 +78,28 @@ class BiometricCaptureScreen(QWidget):
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
             self.camera_label.setPixmap(QPixmap.fromImage(qt_image))
 
+    def continuous_camera_monitoring(self):
+        # Continuously monitor the camera feed for anomalies
+        ret, frame = self.camera.read()
+        if ret:
+            # Example: Detect multiple faces
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+            if len(faces) > 1:
+                QMessageBox.warning(self, "Anomaly Detected", "Multiple faces detected. Please ensure only one voter is present.")
+                print("[MONITOR] Multiple faces detected.")
+
+        # Schedule the next check
+        QTimer.singleShot(1000, self.continuous_camera_monitoring)
+
     def capture_fingerprint(self):
-        # Simulate integration with fingerprint sensor
-        QMessageBox.information(self, "Fingerprint Capture", "Fingerprint captured successfully.")
-        print("[UI] Fingerprint capture simulated.")
+        # Simulate capturing a fingerprint and saving it as an image
+        fingerprint_image_path = "captured_fingerprint.jpg"
+        cv2.imwrite(fingerprint_image_path, np.zeros((100, 100), dtype=np.uint8))  # Placeholder for actual fingerprint image
+        QMessageBox.information(self, "Fingerprint Capture", f"Fingerprint captured and saved as '{fingerprint_image_path}'.")
+        print(f"[UI] Fingerprint captured and saved as '{fingerprint_image_path}'.")
 
     def capture_retina(self):
         # Simulate integration with retina scanner
