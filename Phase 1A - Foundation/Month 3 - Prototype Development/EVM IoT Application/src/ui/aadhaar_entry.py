@@ -3,8 +3,7 @@ Aadhaar Entry Screen for VoteGuard Pro EVM
 Language: Python (PyQt5)
 Handles: Aadhaar number input, biometric capture initiation
 """
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
-from PyQt5.QtCore import QStackedWidget
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QStackedWidget
 
 class AadhaarEntryScreen(QWidget):
     def __init__(self, stacked_widget: QStackedWidget):

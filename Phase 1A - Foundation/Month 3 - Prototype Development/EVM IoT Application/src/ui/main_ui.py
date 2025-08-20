@@ -6,6 +6,13 @@ Handles: Navigation between Aadhaar Entry and Biometric Capture screens
 from PyQt5.QtWidgets import QApplication, QStackedWidget
 from aadhaar_entry import AadhaarEntryScreen
 from biometric_capture import BiometricCaptureScreen
+import sys
+import os
+
+# Correct the backend path calculation
+backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
+if backend_path not in sys.path:
+    sys.path.append(backend_path)
 
 class MainUI(QStackedWidget):
     def __init__(self):
