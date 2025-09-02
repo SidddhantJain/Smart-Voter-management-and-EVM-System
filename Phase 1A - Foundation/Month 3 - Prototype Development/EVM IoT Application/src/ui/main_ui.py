@@ -4,10 +4,11 @@ Language: Python (PyQt5)
 Handles: Navigation between Aadhaar Entry and Biometric Capture screens
 """
 from PyQt5.QtWidgets import QApplication, QStackedWidget
-from aadhaar_entry import AadhaarEntryScreen
-from biometric_capture import BiometricCaptureScreen
+from ui.aadhaar_entry import AadhaarEntryScreen
+from ui.biometric_capture import BiometricCaptureScreen
 import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Ensure the `src` directory is in the Python path
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -23,7 +24,7 @@ class MainUI(QStackedWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("VoteGuard Pro - Main UI")
-        self.setGeometry(100, 100, 800, 600)
+        self.showFullScreen()
 
         # Initialize screens
         self.aadhaar_screen = AadhaarEntryScreen(self)
@@ -36,31 +37,48 @@ class MainUI(QStackedWidget):
         # Set initial screen
         self.setCurrentIndex(0)
 
-        # Set stylesheet
+        # Set improved stylesheet for modern look
         self.setStyleSheet("""
             QStackedWidget {
-                background-color: #f0f0f0;
+                background-color: #e9ecef;
             }
             QLabel {
-                font-size: 16px;
-                color: #333;
+                font-size: 32px;
+                color: #222;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-weight: 600;
+                margin-bottom: 16px;
+            }
+            QLineEdit {
+                font-size: 24px;
+                padding: 10px;
+                border-radius: 6px;
+                border: 1px solid #bbb;
+                margin-bottom: 16px;
             }
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #007bff;
                 color: white;
                 border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                margin: 4px 2px;
-                border-radius: 8px;
+                padding: 16px 32px;
+                font-size: 24px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-weight: 500;
+                margin: 8px 4px;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                transition: background 0.2s;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #0056b3;
             }
         """)
 
-if __name__ == "__main__":
+def main():
     app = QApplication([])
     main_ui = MainUI()
     main_ui.show()
     app.exec_()
+
+if __name__ == "__main__":
+    main()

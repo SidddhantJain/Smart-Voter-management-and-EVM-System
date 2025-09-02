@@ -4,13 +4,14 @@ Language: Python (PyQt5)
 Handles: Fingerprint, Retina, and Face Capture
 """
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox, QStackedWidget
-from voting_screen import VotingScreen
+from ui.voting_screen import VotingScreen
 from PyQt5.QtGui import QImage, QPixmap
 import sys
 import os
 import cv2
 import numpy as np
 from PyQt5.QtCore import QTimer
+import serial
 
 # Ensure the backend directory is in the Python path
 backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
@@ -26,6 +27,9 @@ class BiometricCaptureScreen(QWidget):
         self.camera = cv2.VideoCapture(0)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
+        self.device_port = "Port_#0003.Hub_#0003"  # Update with actual port
+        self.serial_connection = None
+        self.simulation_mode = False
         self.init_ui()
 
     def init_ui(self):
@@ -50,6 +54,11 @@ class BiometricCaptureScreen(QWidget):
         layout.addWidget(self.fingerprint_button)
 
         # Retina Capture Button
+        # Simulation Button (hidden by default)
+        self.simulate_button = QPushButton("Simulate Biometric Capture")
+        self.simulate_button.clicked.connect(self.simulate_biometric)
+        self.simulate_button.setVisible(False)
+        layout.addWidget(self.simulate_button)
         self.retina_button = QPushButton("Capture Retina")
         self.retina_button.clicked.connect(self.capture_retina)
         layout.addWidget(self.retina_button)
@@ -94,38 +103,30 @@ class BiometricCaptureScreen(QWidget):
         # Schedule the next check
         QTimer.singleShot(1000, self.continuous_camera_monitoring)
 
+    def connect_to_device(self):
+        try:
+            self.serial_connection = serial.Serial(self.device_port, baudrate=9600, timeout=1)
+            QMessageBox.information(self, "Device Connection", "Biometric device connected successfully.")
+            self.simulate_button.setVisible(False)
+        except serial.SerialException as e:
+            QMessageBox.critical(self, "Connection Error", f"Failed to connect to the device: {e}")
+            self.simulate_button.setVisible(True)
+
     def capture_fingerprint(self):
-        # Simulate capturing a fingerprint and saving it as an image
-        fingerprint_image_path = "captured_fingerprint.jpg"
-        cv2.imwrite(fingerprint_image_path, np.zeros((100, 100), dtype=np.uint8))  # Placeholder for actual fingerprint image
-        QMessageBox.information(self, "Fingerprint Capture", f"Fingerprint captured and saved as '{fingerprint_image_path}'.")
-        print(f"[UI] Fingerprint captured and saved as '{fingerprint_image_path}'.")
+        self.simulate_biometric(input_type="Fingerprint")
+        return
+
+    def simulate_biometric(self, input_type="Biometric"):
+        self.simulation_mode = True
+        QMessageBox.information(self, "Simulation Mode", f"Simulated {input_type} capture successful.")
+        print(f"[SIMULATION] {input_type} capture simulated.")
 
     def capture_retina(self):
-        # Simulate integration with retina scanner
-        QMessageBox.information(self, "Retina Capture", "Retina captured successfully.")
-        print("[UI] Retina capture simulated.")
+        self.simulate_biometric(input_type="Retina")
+        return
 
     def capture_face(self):
-        ret, frame = self.camera.read()
-        if not ret:
-            QMessageBox.critical(self, "Capture Error", "Unable to capture face.")
-            return
-
-        # Load Haar cascade for face detection
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-
-        if len(faces) == 0:
-            QMessageBox.warning(self, "Face Detection", "No face detected. Please try again.")
-            return
-
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-
-        cv2.imwrite("captured_face.jpg", frame)
-        QMessageBox.information(self, "Face Capture", "Face captured successfully and saved as 'captured_face.jpg'.")
+        self.simulate_biometric(input_type="Face")
         # Transition to Voting Screen
         parties = [
             {"name": "Party A", "symbol": "Symbol A"},
@@ -141,6 +142,8 @@ class BiometricCaptureScreen(QWidget):
     def closeEvent(self, event):
         self.timer.stop()
         self.camera.release()
+        if self.serial_connection and self.serial_connection.is_open:
+            self.serial_connection.close()
         super().closeEvent(event)
 
 if __name__ == "__main__":
