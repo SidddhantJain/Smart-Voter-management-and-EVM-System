@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram>
+  <components>
+    <component id="UI" label="UI (PyQt5)"/>
+    <component id="AadhaarEntry" label="Aadhaar Entry Screen"/>
+    <component id="BiometricCapture" label="Biometric Capture Screen"/>
+    <component id="VotingScreen" label="Voting Screen"/>
+    <component id="BusinessLogic" label="Business Logic Controller"/>
+    <component id="MLModules" label="ML Modules"/>
+    <component id="ArcFace" label="ArcFace Recognition"/>
+    <component id="FingerprintRecognition" label="Fingerprint Recognition"/>
+    <component id="FraudDetection" label="Fraud Detection Model"/>
+    <component id="PatternRecognition" label="Pattern Recognition"/>
+    <component id="RealTimeAnalytics" label="Real-Time Analytics"/>
+    <component id="AnomalyDetection" label="Anomaly Detection"/>
+    <component id="BiometricDevice" label="Biometric Device (PySerial)"/>
+    <component id="Camera" label="Camera (OpenCV)"/>
+    <component id="Blockchain" label="Blockchain Simulation"/>
+    <component id="DataStorage" label="Data Storage (JSON/DB)"/>
+    <component id="VoterData" label="Voter Data"/>
+    <component id="VoteRecords" label="Vote Records"/>
+    <component id="Logs" label="System Logs"/>
+  </components>
+  <connections>
+    <connection from="UI" to="AadhaarEntry" label="User Input"/>
+    <connection from="UI" to="BiometricCapture" label="Biometric Input"/>
+    <connection from="UI" to="VotingScreen" label="Vote Selection"/>
+    <connection from="AadhaarEntry" to="BusinessLogic" label="Validate Aadhaar"/>
+    <connection from="BiometricCapture" to="BusinessLogic" label="Validate Biometric"/>
+    <connection from="VotingScreen" to="BusinessLogic" label="Process Vote"/>
+    <connection from="BusinessLogic" to="MLModules" label="Trigger ML Analysis"/>
+    <connection from="MLModules" to="ArcFace" label="Face Recognition"/>
+    <connection from="MLModules" to="FingerprintRecognition" label="Fingerprint Recognition"/>
+    <connection from="MLModules" to="FraudDetection" label="Fraud Detection"/>
+    <connection from="MLModules" to="PatternRecognition" label="Pattern Analysis"/>
+    <connection from="MLModules" to="RealTimeAnalytics" label="Live Monitoring"/>
+    <connection from="MLModules" to="AnomalyDetection" label="Anomaly Detection"/>
+    <connection from="BusinessLogic" to="BiometricDevice" label="Device Communication"/>
+    <connection from="BusinessLogic" to="Camera" label="Image Capture"/>
+    <connection from="BusinessLogic" to="Blockchain" label="Store Votes"/>
+    <connection from="BusinessLogic" to="DataStorage" label="Store/Retrieve Data"/>
+    <connection from="DataStorage" to="VoterData" label="Voter Info"/>
+    <connection from="DataStorage" to="VoteRecords" label="Vote Data"/>
+    <connection from="DataStorage" to="Logs" label="System Events"/>
+    <connection from="Blockchain" to="VoteRecords" label="Immutable Vote Storage"/>
+    <connection from="BiometricDevice" to="BiometricCapture" label="Fingerprint/Face Data"/>
+    <connection from="Camera" to="ArcFace" label="Face Image"/>
+    <connection from="Camera" to="BiometricCapture" label="Live Feed"/>
+    <connection from="MLModules" to="Logs" label="ML Events"/>
+  </connections>
+</diagram>

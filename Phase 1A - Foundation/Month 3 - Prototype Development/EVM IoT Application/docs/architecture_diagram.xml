@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram>
+  <components>
+    <component id="UI" label="UI (PyQt5)"/>
+    <component id="BusinessLogic" label="Business Logic"/>
+    <component id="MLModules" label="ML Modules"/>
+    <component id="BiometricDevice" label="Biometric Device (PySerial)"/>
+    <component id="Camera" label="Camera (OpenCV)"/>
+    <component id="Blockchain" label="Blockchain Simulation"/>
+    <component id="DataStorage" label="Data Storage (JSON/DB)"/>
+  </components>
+  <connections>
+    <connection from="UI" to="BusinessLogic" label="User Actions"/>
+    <connection from="BusinessLogic" to="MLModules" label="Fraud Detection, Analytics"/>
+    <connection from="BusinessLogic" to="BiometricDevice" label="Fingerprint, Face"/>
+    <connection from="BusinessLogic" to="Camera" label="Image Capture"/>
+    <connection from="BusinessLogic" to="Blockchain" label="Store Votes"/>
+    <connection from="BusinessLogic" to="DataStorage" label="Voter Data"/>
+    <connection from="MLModules" to="DataStorage" label="Training Data"/>
+    <connection from="BiometricDevice" to="DataStorage" label="Biometric Data"/>
+    <connection from="Camera" to="MLModules" label="Image Data"/>
+    <connection from="Blockchain" to="DataStorage" label="Vote Records"/>
+  </connections>
+</diagram>

@@ -1,0 +1,21 @@
+@startuml
+!define RECTANGLE class
+RECTANGLE UI
+RECTANGLE BusinessLogic
+RECTANGLE MLModules
+RECTANGLE BiometricDevice
+RECTANGLE Camera
+RECTANGLE Blockchain
+RECTANGLE DataStorage
+
+UI -down-> BusinessLogic : User Actions
+BusinessLogic -down-> MLModules : Fraud Detection, Analytics
+BusinessLogic -down-> BiometricDevice : Fingerprint, Face
+BusinessLogic -down-> Camera : Image Capture
+BusinessLogic -down-> Blockchain : Store Votes
+BusinessLogic -down-> DataStorage : Voter Data
+MLModules -down-> DataStorage : Training Data
+BiometricDevice -down-> DataStorage : Biometric Data
+Camera -down-> MLModules : Image Data
+Blockchain -down-> DataStorage : Vote Records
+@enduml
