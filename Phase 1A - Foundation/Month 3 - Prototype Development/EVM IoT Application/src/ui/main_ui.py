@@ -3,7 +3,9 @@ Main UI for VoteGuard Pro EVM
 Language: Python (PyQt5)
 Handles: Navigation between Aadhaar Entry and Biometric Capture screens
 """
-from PyQt5.QtWidgets import QApplication, QStackedWidget
+from PyQt5.QtWidgets import QApplication, QStackedWidget, QShortcut
+from PyQt5.QtGui import QKeySequence
+from PyQt5 import QtCore
 from ui.aadhaar_entry import AadhaarEntryScreen
 from ui.biometric_capture import BiometricCaptureScreen
 import sys
@@ -25,6 +27,11 @@ class MainUI(QStackedWidget):
         super().__init__()
         self.setWindowTitle("VoteGuard Pro - Main UI")
         self.showFullScreen()
+
+        # Global shutdown shortcut: Alt+Shift+T
+        self.shutdown_shortcut = QShortcut(QKeySequence("Alt+Shift+T"), self)
+        self.shutdown_shortcut.setContext(QtCore.Qt.ApplicationShortcut)
+        self.shutdown_shortcut.activated.connect(self._shutdown_screen)
 
         # Initialize screens
         self.aadhaar_screen = AadhaarEntryScreen(self)
@@ -73,6 +80,10 @@ class MainUI(QStackedWidget):
                 background-color: #0056b3;
             }
         """)
+
+    def _shutdown_screen(self):
+        # Gracefully exit the application
+        QApplication.instance().quit()
 
 def main():
     app = QApplication([])
