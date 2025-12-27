@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 from PyQt5.QtCore import QTimer
 import serial
+from ml.emotion_recognizer import EmotionRecognizer
 
 # Ensure the backend directory is in the Python path
 backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
@@ -30,6 +31,7 @@ class BiometricCaptureScreen(QWidget):
         self.device_port = "Port_#0003.Hub_#0003"  # Update with actual port
         self.serial_connection = None
         self.simulation_mode = False
+        self.emotion = EmotionRecognizer()  # optional ONNX
         self.init_ui()
 
     def init_ui(self):
@@ -85,7 +87,26 @@ class BiometricCaptureScreen(QWidget):
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            self.camera_label.setPixmap(QPixmap.fromImage(qt_image))
+            # Detect faces and annotate
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+
+            annotated = rgb_frame.copy()
+            for (x, y, w0, h0) in faces:
+                # Draw rectangle
+                cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
+                # Emotion prediction
+                face_roi = annotated[y:y + h0, x:x + w0]
+                label, conf = self.emotion.predict(face_roi)
+                text = f"{label} ({conf:.2f})" if conf > 0 else label
+                cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+
+            # Convert annotated to QImage
+            h2, w2, ch2 = annotated.shape
+            bytes2 = ch2 * w2
+            qt_ann = QImage(annotated.data, w2, h2, bytes2, QImage.Format_RGB888)
+            self.camera_label.setPixmap(QPixmap.fromImage(qt_ann))
 
     def continuous_camera_monitoring(self):
         # Continuously monitor the camera feed for anomalies
@@ -99,6 +120,12 @@ class BiometricCaptureScreen(QWidget):
             if len(faces) > 1:
                 QMessageBox.warning(self, "Anomaly Detected", "Multiple faces detected. Please ensure only one voter is present.")
                 print("[MONITOR] Multiple faces detected.")
+            elif len(faces) == 1 and self.emotion.available():
+                # Optional: log primary face emotion
+                (x, y, w0, h0) = faces[0]
+                face_rgb = cv2.cvtColor(frame[y:y + h0, x:x + w0], cv2.COLOR_BGR2RGB)
+                label, conf = self.emotion.predict(face_rgb)
+                print(f"[EMOTION] Primary face: {label} ({conf:.2f})")
 
         # Schedule the next check
         QTimer.singleShot(1000, self.continuous_camera_monitoring)
