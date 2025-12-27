@@ -135,7 +135,9 @@ class BiometricCaptureScreen(QWidget):
             {"name": "Party D", "symbol": "Symbol D"},
             {"name": "Party E", "symbol": "Symbol E"},
         ]
-        voting_screen = VotingScreen("State Assembly", parties)
+        # Read propagated IDs (from AadhaarEntry)
+        aadhaar_id, voter_id = getattr(self.stacked_widget, 'current_voter_ids', (None, None))
+        voting_screen = VotingScreen("State Assembly", parties, aadhaar_id=aadhaar_id, voter_id=voter_id)
         self.stacked_widget.addWidget(voting_screen)
         self.stacked_widget.setCurrentWidget(voting_screen)
 
