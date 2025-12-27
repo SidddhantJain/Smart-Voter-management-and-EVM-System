@@ -10,6 +10,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend')))
 from backend.vote_storage import VoteStorage
+from ui.vote_visualizer import visualize_vote
 
 class VotingScreen(QWidget):
     def __init__(self, election_type, parties):
@@ -61,6 +62,10 @@ class VotingScreen(QWidget):
         self.vote_storage.store_vote(self.election_type, party['name'])
         QMessageBox.information(self, "Vote Cast", f"Your vote for {party['name']} has been recorded.")
 
+        # Visualization: show candidate card → ballot box → blockchain
+        image_path = self._resolve_candidate_image(party)
+        visualize_vote(self, party['name'], image_path)
+
         # Transition back to Aadhaar Entry UI
         self.transition_to_aadhaar_entry()
 
@@ -68,6 +73,22 @@ class VotingScreen(QWidget):
         # Emit a signal or directly transition to Aadhaar Entry UI
         QMessageBox.information(self, "Next Voter", "Returning to Aadhaar Entry for the next voter.")
         self.parentWidget().setCurrentIndex(0)  # Assuming Aadhaar Entry is at index 0
+
+    def _resolve_candidate_image(self, party):
+        """Try to find a candidate image in assets; return None if not found."""
+        base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        # Common locations
+        candidates_dir = os.path.join(base, 'assets', 'candidates')
+        possible = [
+            os.path.join(candidates_dir, f"{party['name']}.png"),
+            os.path.join(candidates_dir, f"{party['name']}.jpg"),
+            os.path.join(candidates_dir, f"{party['symbol']}.png"),
+            os.path.join(candidates_dir, f"{party['symbol']}.jpg"),
+        ]
+        for p in possible:
+            if os.path.exists(p):
+                return p
+        return None
 
 if __name__ == "__main__":
     app = QApplication([])
