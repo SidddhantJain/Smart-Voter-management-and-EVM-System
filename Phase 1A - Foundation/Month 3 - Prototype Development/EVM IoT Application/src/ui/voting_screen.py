@@ -80,11 +80,16 @@ class VotingScreen(QWidget):
         # Mark as cast
         if self.aadhaar_id and self.voter_id:
             mark_cast(self.aadhaar_id, self.voter_id)
-        QMessageBox.information(self, "Vote Cast", f"Your vote for {party['name']} has been recorded.")
 
         # Visualization: show candidate card → ballot box → blockchain
         image_path = self._resolve_candidate_image(party)
-        visualize_vote(self, party['name'], image_path)
+        def after_visual():
+            # Only after visualization completes, show confirmation and return
+            QMessageBox.information(self, "Vote Cast", f"Your vote for {party['name']} has been recorded.")
+            # Small delay before returning to Aadhaar Entry
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(600, self.transition_to_aadhaar_entry)
+        visualize_vote(self, party['name'], image_path, on_done=after_visual)
 
         # Transition back to Aadhaar Entry UI
         self.transition_to_aadhaar_entry()

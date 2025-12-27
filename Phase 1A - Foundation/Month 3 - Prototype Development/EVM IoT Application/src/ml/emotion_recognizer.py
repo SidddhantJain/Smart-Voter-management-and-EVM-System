@@ -61,7 +61,18 @@ class EmotionRecognizer:
         Returns (emotion_label, confidence). Falls back to ('Unknown', 0.0).
         """
         if self.session is None:
-            return ("Unknown", 0.0)
+            # Fallback: simple smile detection using Haar cascade
+            try:
+                import cv2
+                gray = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2GRAY)
+                smile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_smile.xml')
+                smiles = smile_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=20)
+                if len(smiles) > 0:
+                    return ("Happiness", 0.6)
+                else:
+                    return ("Neutral", 0.5)
+            except Exception:
+                return ("Unknown", 0.0)
 
         inp = self._preprocess(face_rgb)
         try:
@@ -71,6 +82,19 @@ class EmotionRecognizer:
             exps = np.exp(logits - np.max(logits))
             probs = exps / np.sum(exps)
             idx = int(np.argmax(probs))
-            return (EMOTIONS[idx], float(probs[idx]))
+            label = EMOTIONS[idx]
+            conf = float(probs[idx])
+            # If low confidence, try smile fallback
+            if conf < 0.35:
+                try:
+                    import cv2
+                    gray = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2GRAY)
+                    smile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_smile.xml')
+                    smiles = smile_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=20)
+                    if len(smiles) > 0:
+                        return ("Happiness", 0.6)
+                except Exception:
+                    pass
+            return (label, conf)
         except Exception:
             return ("Unknown", 0.0)

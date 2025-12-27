@@ -154,7 +154,7 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         anim.finished.connect(_finish)
         anim.start()
 
-    def run_flow(self, candidate_name: str, image_path: str | Path | None = None) -> None:
+    def run_flow(self, candidate_name: str, image_path: str | Path | None = None, on_done=None) -> None:
         self._add_to_paper_chain(candidate_name)
         card = self._make_candidate_card(candidate_name, Path(image_path) if image_path else None)
         start = card.pos()
@@ -162,17 +162,22 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         end = QtCore.QPointF(target_center.x() - 100, target_center.y() - 60)
 
         def after_box():
-            self._animate_opacity(card, 1.0, 0.0, 600)
+            self._animate_opacity(card, 1.0, 0.0, 1200)
             self.blockchain_block.setOpacity(0.0)
             self.blockchain_label.setOpacity(0.0)
-            self._animate_opacity(self.blockchain_block, 0.0, 1.0, 700)
-            self._animate_opacity(self.blockchain_label, 0.0, 1.0, 700)
-            QtCore.QTimer.singleShot(1800, self.accept)  # auto-close
+            self._animate_opacity(self.blockchain_block, 0.0, 1.0, 1200)
+            self._animate_opacity(self.blockchain_label, 0.0, 1.0, 1200)
+            # Inform caller after animation completes
+            if callable(on_done):
+                QtCore.QTimer.singleShot(1400, on_done)
+            # Auto-close slightly after callback
+            QtCore.QTimer.singleShot(2200, self.accept)
 
-        self._animate_move(card, start, end, 1200, on_done=after_box)
+        # Slow down the move animation for emphasis
+        self._animate_move(card, start, end, 2500, on_done=after_box)
 
 
-def visualize_vote(parent: QtWidgets.QWidget | None, candidate_name: str, image_path: str | Path | None = None) -> None:
+def visualize_vote(parent: QtWidgets.QWidget | None, candidate_name: str, image_path: str | Path | None = None, on_done=None) -> None:
     dlg = VoteVisualizerDialog(parent)
     dlg.show()
-    QtCore.QTimer.singleShot(50, lambda: dlg.run_flow(candidate_name, image_path))
+    QtCore.QTimer.singleShot(50, lambda: dlg.run_flow(candidate_name, image_path, on_done=on_done))
