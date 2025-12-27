@@ -13,6 +13,7 @@ import numpy as np
 from PyQt5.QtCore import QTimer
 import serial
 from ml.emotion_recognizer import EmotionRecognizer
+from ml.demographics_recognizer import DemographicsRecognizer
 
 # Ensure the backend directory is in the Python path
 backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
@@ -32,6 +33,7 @@ class BiometricCaptureScreen(QWidget):
         self.serial_connection = None
         self.simulation_mode = False
         self.emotion = EmotionRecognizer()  # optional ONNX
+        self.demo = DemographicsRecognizer()  # optional age/gender
         self.init_ui()
 
     def init_ui(self):
@@ -99,8 +101,10 @@ class BiometricCaptureScreen(QWidget):
                 # Emotion prediction
                 face_roi = annotated[y:y + h0, x:x + w0]
                 label, conf = self.emotion.predict(face_roi)
-                text = f"{label} ({conf:.2f})" if conf > 0 else label
-                cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+                # Age/Gender
+                age_bucket, age_conf, gender_label, gender_conf = self.demo.predict(face_roi)
+                text = f"{gender_label} {gender_conf:.2f} | Age {age_bucket} {age_conf:.2f} | {label} {conf:.2f}"
+                cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 0), 2)
 
             # Convert annotated to QImage
             h2, w2, ch2 = annotated.shape
@@ -120,12 +124,13 @@ class BiometricCaptureScreen(QWidget):
             if len(faces) > 1:
                 QMessageBox.warning(self, "Anomaly Detected", "Multiple faces detected. Please ensure only one voter is present.")
                 print("[MONITOR] Multiple faces detected.")
-            elif len(faces) == 1 and self.emotion.available():
+            elif len(faces) == 1:
                 # Optional: log primary face emotion
                 (x, y, w0, h0) = faces[0]
                 face_rgb = cv2.cvtColor(frame[y:y + h0, x:x + w0], cv2.COLOR_BGR2RGB)
                 label, conf = self.emotion.predict(face_rgb)
-                print(f"[EMOTION] Primary face: {label} ({conf:.2f})")
+                age_bucket, age_conf, gender_label, gender_conf = self.demo.predict(face_rgb)
+                print(f"[EMOTION] {label} ({conf:.2f}) | [AGE] {age_bucket} ({age_conf:.2f}) | [GENDER] {gender_label} ({gender_conf:.2f})")
 
         # Schedule the next check
         QTimer.singleShot(1000, self.continuous_camera_monitoring)

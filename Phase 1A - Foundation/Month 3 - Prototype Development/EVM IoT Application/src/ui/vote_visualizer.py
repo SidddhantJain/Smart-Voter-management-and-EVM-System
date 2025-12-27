@@ -154,7 +154,7 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         anim.finished.connect(_finish)
         anim.start()
 
-    def run_flow(self, candidate_name: str, image_path: str | Path | None = None, on_done=None) -> None:
+    def run_flow(self, candidate_name: str, image_path: str | Path | None = None) -> None:
         self._add_to_paper_chain(candidate_name)
         card = self._make_candidate_card(candidate_name, Path(image_path) if image_path else None)
         start = card.pos()
@@ -167,10 +167,7 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
             self.blockchain_label.setOpacity(0.0)
             self._animate_opacity(self.blockchain_block, 0.0, 1.0, 1200)
             self._animate_opacity(self.blockchain_label, 0.0, 1.0, 1200)
-            # Inform caller after animation completes
-            if callable(on_done):
-                QtCore.QTimer.singleShot(1400, on_done)
-            # Auto-close slightly after callback
+            # Auto-close after animation
             QtCore.QTimer.singleShot(2200, self.accept)
 
         # Slow down the move animation for emphasis
@@ -179,5 +176,7 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
 
 def visualize_vote(parent: QtWidgets.QWidget | None, candidate_name: str, image_path: str | Path | None = None, on_done=None) -> None:
     dlg = VoteVisualizerDialog(parent)
+    if callable(on_done):
+        dlg.accepted.connect(on_done)
     dlg.show()
-    QtCore.QTimer.singleShot(50, lambda: dlg.run_flow(candidate_name, image_path, on_done=on_done))
+    QtCore.QTimer.singleShot(50, lambda: dlg.run_flow(candidate_name, image_path))
