@@ -4,10 +4,11 @@ Language: Python (PyQt5)
 Handles: Aadhaar number input, biometric capture initiation
 """
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QStackedWidget
+import uuid
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend')))
-from backend.cast_registry import has_cast
+from voteguard.adapters.audit_helper import SafeAuditLogger
 
 class AadhaarEntryScreen(QWidget):
     def __init__(self, stacked_widget: QStackedWidget):
@@ -15,6 +16,7 @@ class AadhaarEntryScreen(QWidget):
         self.stacked_widget = stacked_widget
         self.setWindowTitle("VoteGuard Pro - Aadhaar Entry")
         self.setGeometry(100, 100, 800, 600)
+        self.audit = SafeAuditLogger()
         self.init_ui()
 
     def init_ui(self):
@@ -47,15 +49,30 @@ class AadhaarEntryScreen(QWidget):
         aadhaar_number = self.aadhaar_input.text()
         voter_id = self.voter_id_input.text()
         if len(aadhaar_number) == 12 and aadhaar_number.isdigit() and voter_id:
-            # Check double voting
-            if has_cast(aadhaar_number, voter_id):
-                QMessageBox.warning(self, "Already Voted", "This Aadhaar/Voter ID pair has already cast a vote.")
-                return
+            # Start session (audit correlation only, no PII)
+            try:
+                session_id = str(uuid.uuid4())
+                setattr(self.stacked_widget, 'session_id', session_id)
+                # Propagate to child screens if present
+                if hasattr(self.stacked_widget, 'biometric_screen'):
+                    self.stacked_widget.biometric_screen.session_id = session_id
+                self.audit.log("SESSION_STARTED", {"session_id": session_id})
+            except Exception:
+                pass
             QMessageBox.information(self, "Success", "Aadhaar and Voter ID Validated. Proceeding to Biometric Capture.")
             # Propagate IDs to the stacked widget so next screen can read them
             self.stacked_widget.current_voter_ids = (aadhaar_number, voter_id)
-            self.stacked_widget.setCurrentIndex(1)  # Switch to Biometric Capture Screen
+            # State machine: attempt transition via parent controller
+            try:
+                from voteguard.core.state_machine import State
+                if hasattr(self.stacked_widget, "navigate_to"):
+                    self.stacked_widget.navigate_to(1, State.BIOMETRIC_CAPTURE)
+                else:
+                    self.stacked_widget.setCurrentIndex(1)
+            except Exception:
+                self.stacked_widget.setCurrentIndex(1)
         else:
+            self.audit.log("AADHAAR_VALIDATION_FAILED", {"reason": "format"})
             QMessageBox.warning(self, "Error", "Invalid Aadhaar Number or Voter ID. Please enter valid details.")
 
 if __name__ == "__main__":

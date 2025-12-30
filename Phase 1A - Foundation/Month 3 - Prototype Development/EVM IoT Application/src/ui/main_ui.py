@@ -27,6 +27,17 @@ class MainUI(QStackedWidget):
         super().__init__()
         self.setWindowTitle("VoteGuard Pro - Main UI")
         self.showFullScreen()
+        # Session tracking (for audit correlation only)
+        self.session_id = None
+        # State machine
+        try:
+            from voteguard.core.state_machine import State
+            self.State = State
+            # Treat AADHAAR_ENTRY as idle/ready state in this UI
+            self.current_state = State.AADHAAR_ENTRY
+        except Exception:
+            self.State = None
+            self.current_state = None
 
         # Global shutdown shortcut: Alt+Shift+T
         self.shutdown_shortcut = QShortcut(QKeySequence("Alt+Shift+T"), self)
@@ -36,6 +47,9 @@ class MainUI(QStackedWidget):
         # Initialize screens
         self.aadhaar_screen = AadhaarEntryScreen(self)
         self.biometric_screen = BiometricCaptureScreen(self)
+        # Propagate initial (empty) session to children
+        if hasattr(self.biometric_screen, 'session_id'):
+            self.biometric_screen.session_id = self.session_id
 
         # Add screens to stacked widget
         self.addWidget(self.aadhaar_screen)
@@ -84,6 +98,33 @@ class MainUI(QStackedWidget):
     def _shutdown_screen(self):
         # Gracefully exit the application
         QApplication.instance().quit()
+
+    def navigate_to(self, index: int, target_state):
+        """Navigate with state assertion; block invalid transitions."""
+        try:
+            from voteguard.core.state_machine import assert_transition
+            if self.current_state is not None and target_state is not None:
+                assert_transition(self.current_state, target_state)
+                self.setCurrentIndex(index)
+                self.current_state = target_state
+                return True
+        except Exception:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Navigation Blocked", f"Invalid transition attempted.")
+        return False
+
+    def set_state(self, target_state):
+        """Update state without changing screen when conceptual step occurs."""
+        try:
+            from voteguard.core.state_machine import assert_transition
+            if self.current_state is not None and target_state is not None:
+                assert_transition(self.current_state, target_state)
+                self.current_state = target_state
+                return True
+        except Exception:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "State Blocked", f"Invalid state change attempted.")
+        return False
 
 def main():
     app = QApplication([])

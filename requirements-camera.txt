@@ -1,0 +1,4 @@
+# Optional camera overlays; install only if needed.
+# Ensure Python version has prebuilt wheels for these packages.
+opencv-python==4.9.0.80
+numpy==1.26.4

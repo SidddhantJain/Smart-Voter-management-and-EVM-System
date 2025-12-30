@@ -24,6 +24,10 @@ key.key
 # Data
 votes.json
 cast_registry.json
+data/
+ballot_ledger.json
+audit_ledger.json
+*.key
 
 # Models (downloaded)
 models/*.caffemodel

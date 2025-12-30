@@ -5,7 +5,14 @@ import hashlib
 
 
 def verify(path: Path) -> int:
-    data = json.loads(path.read_text("utf-8"))
+    if not path.exists():
+        print(f"ERROR: Ledger not found at {path}")
+        return 2
+    try:
+        data = json.loads(path.read_text("utf-8"))
+    except Exception as e:
+        print(f"ERROR: Failed to read ledger: {e}")
+        return 3
     records = data.get("records", [])
     prev_hash = "0" * 64
     expected_seq = 1

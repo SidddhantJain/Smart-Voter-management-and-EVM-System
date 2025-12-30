@@ -1,6 +1,10 @@
-pyqt5==5.15.10
 cryptography==41.0.3
-opencv-python==4.9.0.80
-numpy==1.26.4
-pyserial==3.5
-python-dotenv==1.0.1
+# UI is optional; base aims to work headless and in simulation.
+pyqt5==5.15.10
+# Dev/test tooling (Windows-safe; no compilation required)
+pytest==7.4.4
+
+# Notes:
+# - NumPy and OpenCV are optional due to Windows wheels variability across Python versions.
+# - For camera overlays, install requirements-camera.txt.
+# - For ML analytics, install requirements-ml.txt.

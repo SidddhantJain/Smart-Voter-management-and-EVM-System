@@ -1,0 +1,14 @@
+[project]
+name = "voteguard-prototype"
+version = "0.1.0"
+description = "VoteGuard Pro prototype: clean-architecture core with simulation-first adapters"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["voteguard*", "scripts*", "tests*"]
