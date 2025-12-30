@@ -198,6 +198,43 @@ python .\run_app.py
 python .\scripts\demo_camera_detection.py
 ```
 
+## 15. Audit Events & Simulation CLI
+
+- Audit Ledger: Events are appended to `data/audit_ledger.json` with a hash chain for integrity. Payload includes `kind`, `details`, and timestamp `at`.
+- PII Policy: No Aadhaar or Voter ID are recorded in audit. Only non-identifying fields like `session_id` (uuid), booleans, and generic types are logged.
+
+Minimum events emitted in UI:
+- `SESSION_STARTED`: details `{ session_id }`
+- `AADHAAR_VALIDATION_FAILED`: details `{ reason }`
+- `BIOMETRIC_COMPLETED`: details `{ session_id, camera_missing, simulated }`
+- `VOTE_ATTEMPT`: details `{ session_id, election_type }`
+- `VOTE_STORED`: details `{ session_id, election_type, receipt_id }`
+- `SESSION_RESET`: details `{ session_id }`
+
+Example audit record (payload field parsed):
+```json
+{
+	"kind": "VOTE_STORED",
+	"details": {
+		"session_id": "7c1b9f4f-2f5f-4e3e-9e2a-3f0b1a6a0c1e",
+		"election_type": "State Assembly",
+		"receipt_id": "e0d7d044a2b54f9c..."
+	},
+	"at": 1735468800.123
+}
+```
+
+Simulation CLI (`scripts/simulate_votes.py`):
+- Flags:
+	- `--n <int>`: number of votes to simulate (default 3)
+	- `--reset`: clears ledgers and cast registry in `data/` before simulation
+- Example:
+```powershell
+python .\scripts\simulate_votes.py --reset --n 3
+python .\scripts\verify_ledger.py .\data\ballot_ledger.json
+python .\scripts\verify_ledger.py .\data\audit_ledger.json
+```
+
 For documentation indices, see `docs/README.md`. Configuration exemplars are in `.env.example`. Secrets such as `key.key` must not be committed and should be externally managed in production contexts.
 
 A security-first, prototype-grade electronic voting system combining a touchscreen UI, biometric/device integrations, local encrypted vote storage, and a blockchain client placeholder for immutable recording. The repository includes research/design artifacts (Phase 1A), a working PyQt UI flow, hardware driver stubs (C++), ML modules for biometrics, and operations documentation.
