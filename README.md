@@ -1,5 +1,45 @@
 # Smart Voter Management and EVM System — VoteGuard Pro
 
+<p align="center">
+	<a href="#"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"></a>
+	<a href="#"><img src="https://img.shields.io/badge/platform-windows-%230078D4" alt="Windows"></a>
+	<a href="#"><img src="https://img.shields.io/badge/ui-PyQt5-41b883" alt="PyQt5"></a>
+	<a href="#"><img src="https://img.shields.io/badge/cv-OpenCV-5C3EE8" alt="OpenCV"></a>
+</p>
+
+## Quick Start (Windows)
+
+```powershell
+# 1) Create and activate venv
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+
+# 2) Install dependencies
+pip install -r "Phase 1A - Foundation/Month 3 - Prototype Development/EVM IoT Application/requirements.txt"
+
+# 3) Run the UI
+python .\run_app.py
+
+# Optional: Demo camera overlays (emotion/age/gender)
+python .\scripts\demo_camera_detection.py
+```
+
+## Table of Contents
+
+- [1) Project Overview](#1-project-overview)
+- [2) Repository Map (Directory & Module Guide)](#2-repository-map-directory--module-guide)
+- [3) System Architecture](#3-system-architecture)
+- [4) Component Breakdown (Deep)](#4-component-breakdown-deep)
+- [5) Implementation Details (End-to-End Flow)](#5-implementation-details-end-to-end-flow)
+- [6) Data Layer & Storage](#6-data-layer--storage)
+- [7) API Documentation](#7-api-documentation)
+- [8) Authentication & Authorization](#8-authentication--authorization)
+- [9) Security Review (Detailed)](#9-security-review-detailed)
+- [10) Observability & Operations](#10-observability--operations)
+- [11) Deployment](#11-deployment)
+- [12) Configuration Reference](#12-configuration-reference)
+- [13) Testing](#13-testing)
+- [14) Contribution & Development Workflow](#14-contribution--development-workflow)
+
 A security-first, prototype-grade electronic voting system combining a touchscreen UI, biometric/device integrations, local encrypted vote storage, and a blockchain client placeholder for immutable recording. The repository includes research/design artifacts (Phase 1A), a working PyQt UI flow, hardware driver stubs (C++), ML modules for biometrics, and operations documentation.
 
 ---

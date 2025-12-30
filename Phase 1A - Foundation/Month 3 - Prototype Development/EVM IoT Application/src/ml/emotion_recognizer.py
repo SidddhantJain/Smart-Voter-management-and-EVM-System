@@ -5,6 +5,7 @@ If `models/ferplus.onnx` is present, runs inference; otherwise returns 'Unknown'
 import os
 from pathlib import Path
 from typing import Optional, Tuple
+from collections import deque, Counter
 
 import numpy as np
 
@@ -35,6 +36,8 @@ class EmotionRecognizer:
 
         self.model_path = model_path
         self.session = None
+        # History buffer for temporal smoothing
+        self._history = deque(maxlen=7)  # (label, conf) for recent frames
         if ort is not None and model_path.exists():
             try:
                 self.session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])  # type: ignore
@@ -66,13 +69,13 @@ class EmotionRecognizer:
                 import cv2
                 gray = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2GRAY)
                 smile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_smile.xml')
-                smiles = smile_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=20)
+                smiles = smile_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=25)
                 if len(smiles) > 0:
-                    return ("Happiness", 0.6)
+                    return self._smooth("Happiness", 0.6)
                 else:
-                    return ("Neutral", 0.5)
+                    return self._smooth("Neutral", 0.5)
             except Exception:
-                return ("Unknown", 0.0)
+                return self._smooth("Unknown", 0.0)
 
         inp = self._preprocess(face_rgb)
         try:
@@ -90,11 +93,29 @@ class EmotionRecognizer:
                     import cv2
                     gray = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2GRAY)
                     smile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_smile.xml')
-                    smiles = smile_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=20)
+                    smiles = smile_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=25)
                     if len(smiles) > 0:
-                        return ("Happiness", 0.6)
+                        return self._smooth("Happiness", 0.6)
                 except Exception:
                     pass
-            return (label, conf)
+            return self._smooth(label, conf)
         except Exception:
-            return ("Unknown", 0.0)
+            return self._smooth("Unknown", 0.0)
+
+    def _smooth(self, label: str, conf: float) -> Tuple[str, float]:
+        """
+        Apply temporal smoothing using a short history window.
+        Majority vote for label; average confidence for the majority label.
+        """
+        self._history.append((label, conf))
+        if not self._history:
+            return label, conf
+        labels = [l for l, _ in self._history]
+        counts = Counter(labels)
+        majority_label, majority_count = counts.most_common(1)[0]
+        # Require at least 3 occurrences in window to override current label
+        if majority_count >= 3:
+            confs = [c for l, c in self._history if l == majority_label]
+            avg_conf = float(sum(confs) / max(len(confs), 1))
+            return majority_label, avg_conf
+        return label, conf

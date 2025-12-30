@@ -49,6 +49,19 @@ class DemographicsRecognizer:
             except Exception:
                 self.ort_sess = None
 
+        # If no models available, try auto-download Caffe age/gender models
+        if not self.available():
+            self._ensure_models_downloaded()
+            try:
+                import cv2
+                if self.age_proto.exists() and self.age_model.exists():
+                    self.age_net = cv2.dnn.readNetFromCaffe(str(self.age_proto), str(self.age_model))
+                if self.gender_proto.exists() and self.gender_model.exists():
+                    self.gender_net = cv2.dnn.readNetFromCaffe(str(self.gender_proto), str(self.gender_model))
+            except Exception:
+                self.age_net = None
+                self.gender_net = None
+
     def available(self) -> bool:
         return any([self.age_net is not None, self.gender_net is not None, self.ort_sess is not None])
 
@@ -100,3 +113,31 @@ class DemographicsRecognizer:
     def _softmax(logits: np.ndarray) -> np.ndarray:
         exps = np.exp(logits - np.max(logits))
         return exps / np.sum(exps)
+
+    def _ensure_models_downloaded(self) -> None:
+        urls = {
+            self.age_proto: "https://raw.githubusercontent.com/spmallick/learnopencv/master/AgeGender/models/deploy_age.prototxt",
+            self.age_model: "https://raw.githubusercontent.com/spmallick/learnopencv/master/AgeGender/models/age_net.caffemodel",
+            self.gender_proto: "https://raw.githubusercontent.com/spmallick/learnopencv/master/AgeGender/models/deploy_gender.prototxt",
+            self.gender_model: "https://raw.githubusercontent.com/spmallick/learnopencv/master/AgeGender/models/gender_net.caffemodel",
+        }
+        try:
+            import requests  # type: ignore
+            self.models_dir.mkdir(parents=True, exist_ok=True)
+            for path, url in urls.items():
+                if not path.exists():
+                    resp = requests.get(url, timeout=20)
+                    if resp.status_code == 200:
+                        path.write_bytes(resp.content)
+        except Exception:
+            # Fallback to urllib if requests isn't available
+            try:
+                import urllib.request
+                self.models_dir.mkdir(parents=True, exist_ok=True)
+                for path, url in urls.items():
+                    if not path.exists():
+                        with urllib.request.urlopen(url, timeout=20) as resp:  # type: ignore
+                            data = resp.read()
+                            path.write_bytes(data)
+            except Exception:
+                pass
