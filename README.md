@@ -86,35 +86,23 @@ Trust Boundaries:
 Protections:
 
 - Cryptographic Storage: Votes are encrypted via `cryptography.Fernet` with a file-based key. The ledger is append-only, re-encrypted on write.
-- Double-Vote Prevention: A cast registry prevents re-voting by identifiers within the session context.
-- Audit Logging: Operational events are encrypted and recorded to preserve transparency while limiting sensitive exposure.
-
 Attack Surface Analysis:
 
-- Key Management: Keys stored locally are vulnerable if not managed externally; the design recommends secure key stores and rotation.
-- FFI Boundaries: Hardware/Rust libraries are placeholders; production use requires signed artifacts, integrity checks, and sandboxing.
 - UI Manipulation: Timing and dialog sequencing have been hardened to prevent overlapping events; further state machine formalization is recommended.
 
-Failure & Recovery:
 
-- Decryption Errors: Storage reinitialization and operator alerts; recovery procedures must ensure integrity of prior writes.
 - Device Failures: Fallback to simulation paths; operator notification.
 - ML Failures: Overlays degrade gracefully to “Unknown”; no effect on voting capability.
-
-## 8. Accessibility & Inclusive Design
 
 Accessibility is treated as a correctness constraint. The voter journey emphasizes clarity, predictability, and minimal cognitive load. UI components are designed to support diverse users, including those with visual, motor, cognitive, or linguistic differences.
 
 Design Principles and Practices:
-
 - Clear Sequencing: Modal dialogs and controlled timing avoid overlapping visual events and reduce confusion.
 - Readability: High-contrast styles and large targets; avoid rapid, distracting animations.
 - Error Recovery: Explicit messages with descriptive guidance; no silent failures.
-- Cognitive Load: Simplified flows; consistent placement and wording; minimal required memory.
 - Assistive Signals: Overlays and confirmations that reinforce actions without reliance on complex icons.
 
 Alignment: The design aims toward WCAG-aligned practices (perceptible, operable, understandable) and treats accessibility failures as system correctness failures, not cosmetic defects.
-
 ## 9. Implementation Details
 
 - Languages & Frameworks: Python (PyQt5, OpenCV, NumPy), optional TensorFlow/ONNXRuntime for ML, C++ stubs for devices, Rust stub for crypto.
@@ -196,43 +184,6 @@ python .\run_app.py
 
 # Optional: Camera overlays demo
 python .\scripts\demo_camera_detection.py
-```
-
-## 15. Audit Events & Simulation CLI
-
-- Audit Ledger: Events are appended to `data/audit_ledger.json` with a hash chain for integrity. Payload includes `kind`, `details`, and timestamp `at`.
-- PII Policy: No Aadhaar or Voter ID are recorded in audit. Only non-identifying fields like `session_id` (uuid), booleans, and generic types are logged.
-
-Minimum events emitted in UI:
-- `SESSION_STARTED`: details `{ session_id }`
-- `AADHAAR_VALIDATION_FAILED`: details `{ reason }`
-- `BIOMETRIC_COMPLETED`: details `{ session_id, camera_missing, simulated }`
-- `VOTE_ATTEMPT`: details `{ session_id, election_type }`
-- `VOTE_STORED`: details `{ session_id, election_type, receipt_id }`
-- `SESSION_RESET`: details `{ session_id }`
-
-Example audit record (payload field parsed):
-```json
-{
-	"kind": "VOTE_STORED",
-	"details": {
-		"session_id": "7c1b9f4f-2f5f-4e3e-9e2a-3f0b1a6a0c1e",
-		"election_type": "State Assembly",
-		"receipt_id": "e0d7d044a2b54f9c..."
-	},
-	"at": 1735468800.123
-}
-```
-
-Simulation CLI (`scripts/simulate_votes.py`):
-- Flags:
-	- `--n <int>`: number of votes to simulate (default 3)
-	- `--reset`: clears ledgers and cast registry in `data/` before simulation
-- Example:
-```powershell
-python .\scripts\simulate_votes.py --reset --n 3
-python .\scripts\verify_ledger.py .\data\ballot_ledger.json
-python .\scripts\verify_ledger.py .\data\audit_ledger.json
 ```
 
 For documentation indices, see `docs/README.md`. Configuration exemplars are in `.env.example`. Secrets such as `key.key` must not be committed and should be externally managed in production contexts.

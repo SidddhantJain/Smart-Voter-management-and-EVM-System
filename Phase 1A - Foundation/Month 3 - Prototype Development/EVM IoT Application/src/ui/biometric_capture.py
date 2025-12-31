@@ -21,14 +21,8 @@ try:
     import serial  # optional
 except Exception:
     serial = None
-try:
-    from ml.emotion_recognizer import EmotionRecognizer
-except Exception:
-    EmotionRecognizer = None
-try:
-    from ml.demographics_recognizer import DemographicsRecognizer
-except Exception:
-    DemographicsRecognizer = None
+from voteguard.config.env import enable_camera, enable_ml
+from voteguard.adapters.ml_analytics_optional import analyze, models_loaded
 from voteguard.adapters.audit_helper import SafeAuditLogger
 
 # Ensure the backend directory is in the Python path
@@ -49,8 +43,8 @@ class BiometricCaptureScreen(QWidget):
         self.device_port = "Port_#0003.Hub_#0003"  # Update with actual port
         self.serial_connection = None
         self.simulation_mode = True if cv2 is None else False
-        self.emotion = EmotionRecognizer() if EmotionRecognizer is not None else None
-        self.demo = DemographicsRecognizer() if DemographicsRecognizer is not None else None
+        # Privacy banner for optional ML overlays
+        self.ml_enabled = enable_camera() and enable_ml() and (cv2 is not None)
         self.audit = SafeAuditLogger()
         self.init_ui()
 
@@ -64,6 +58,11 @@ class BiometricCaptureScreen(QWidget):
         # Camera Feed
         self.camera_label = QLabel()
         layout.addWidget(self.camera_label)
+
+        # Privacy banner (shown only when ML overlays active)
+        self.privacy_banner = QLabel("Optional local analytics overlay. Not stored.")
+        self.privacy_banner.setVisible(self.ml_enabled)
+        layout.addWidget(self.privacy_banner)
 
         # Start Camera Button
         self.start_camera_button = QPushButton("Start Camera")
@@ -103,6 +102,17 @@ class BiometricCaptureScreen(QWidget):
             })
             return
         self.timer.start(30)
+        # Audit ML enabled/disabled (no predictions logged)
+        try:
+            self.audit.log("ML_OVERLAY_STATUS", {
+                "enabled": bool(self.ml_enabled),
+            })
+            if self.ml_enabled:
+                ml_avail = models_loaded()
+                if not (ml_avail.get("emotion") or ml_avail.get("demographics")):
+                    self.audit.log("ML_MODEL_LOAD_FAILED", {"details": "optional models not available"})
+        except Exception:
+            pass
         # No PII; readiness is implicit
         self.continuous_camera_monitoring()
 
@@ -116,25 +126,28 @@ class BiometricCaptureScreen(QWidget):
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            # Detect faces and annotate
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
-
             annotated = rgb_frame.copy()
-            for (x, y, w0, h0) in faces:
-                # Draw rectangle
-                cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
-                # Emotion prediction
-                face_roi = annotated[y:y + h0, x:x + w0]
-                label, conf = (self.emotion.predict(face_roi) if self.emotion is not None else ("Unknown", 0.0))
-                # Age/Gender
-                if self.demo is not None:
-                    age_bucket, age_conf, gender_label, gender_conf = self.demo.predict(face_roi)
-                else:
-                    age_bucket, age_conf, gender_label, gender_conf = ("Unknown", 0.0, "Unknown", 0.0)
-                text = f"{gender_label} {gender_conf:.2f} | Age {age_bucket} {age_conf:.2f} | {label} {conf:.2f}"
-                cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 0), 2)
+            if self.ml_enabled:
+                try:
+                    insights = analyze(frame)
+                except Exception:
+                    insights = []
+                # Draw boxes and overlay text (no storage/logging)
+                for res in insights:
+                    (x, y, w0, h0) = res["bbox"]
+                    cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
+                    text = f"{res['gender']} | Age {res['age']} | {res['emotion']}"
+                    cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 0), 2)
+            else:
+                # Minimal: draw face boxes without ML text when ML disabled
+                try:
+                    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                    faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+                    for (x, y, w0, h0) in faces:
+                        cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
+                except Exception:
+                    pass
 
             # Convert annotated to QImage
             h2, w2, ch2 = annotated.shape
@@ -149,24 +162,15 @@ class BiometricCaptureScreen(QWidget):
             return
         ret, frame = self.camera.read()
         if ret:
-            # Example: Detect multiple faces
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-
-            if len(faces) > 1:
-                QMessageBox.warning(self, "Anomaly Detected", "Multiple faces detected. Please ensure only one voter is present.")
-                print("[MONITOR] Multiple faces detected.")
-            elif len(faces) == 1:
-                # Optional: log primary face emotion
-                (x, y, w0, h0) = faces[0]
-                face_rgb = cv2.cvtColor(frame[y:y + h0, x:x + w0], cv2.COLOR_BGR2RGB)
-                label, conf = (self.emotion.predict(face_rgb) if self.emotion is not None else ("Unknown", 0.0))
-                if self.demo is not None:
-                    age_bucket, age_conf, gender_label, gender_conf = self.demo.predict(face_rgb)
-                else:
-                    age_bucket, age_conf, gender_label, gender_conf = ("Unknown", 0.0, "Unknown", 0.0)
-                print(f"[EMOTION] {label} ({conf:.2f}) | [AGE] {age_bucket} ({age_conf:.2f}) | [GENDER] {gender_label} ({gender_conf:.2f})")
+            try:
+                gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                if len(faces) > 1:
+                    QMessageBox.warning(self, "Anomaly Detected", "Multiple faces detected. Please ensure only one voter is present.")
+                    print("[MONITOR] Multiple faces detected.")
+            except Exception:
+                pass
 
         # Schedule the next check
         QTimer.singleShot(1000, self.continuous_camera_monitoring)
