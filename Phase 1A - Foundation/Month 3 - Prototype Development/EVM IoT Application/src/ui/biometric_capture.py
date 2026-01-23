@@ -3,8 +3,8 @@ Biometric Capture Screen for VoteGuard Pro EVM
 Language: Python (PyQt5)
 Handles: Fingerprint, Retina, and Face Capture
 """
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox, QStackedWidget
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QStackedWidget
+from PyQt5.QtWidgets import QFileDialog, QComboBox, QLineEdit, QCheckBox
 from ui.voting_screen import VotingScreen
 from PyQt5.QtGui import QImage, QPixmap
 import sys
@@ -22,7 +22,7 @@ try:
     import serial  # optional
 except Exception:
     serial = None
-from voteguard.config.env import enable_camera, enable_ml
+from voteguard.config.env import enable_camera, enable_ml, overlays_enabled
 from voteguard.adapters.ml_analytics_optional import analyze, models_loaded
 from voteguard.adapters.audit_helper import SafeAuditLogger
 
@@ -44,9 +44,16 @@ class BiometricCaptureScreen(QWidget):
         self.device_port = "Port_#0003.Hub_#0003"  # Update with actual port
         self.serial_connection = None
         self.simulation_mode = True if cv2 is None else False
-        # Privacy banner for optional ML overlays
-        self.ml_enabled = enable_camera() and enable_ml() and (cv2 is not None)
+        # Privacy banner for optional ML overlays (respect global overlays toggle)
+        self.ml_enabled = overlays_enabled() and enable_camera() and enable_ml() and (cv2 is not None)
         self.audit = SafeAuditLogger()
+        # Overrides for ML overlays
+        self.override_enabled = False
+        self.override_gender = None  # "Male"|"Female"|None
+        self.override_age = None     # int or None
+        # Camera selection
+        self.selected_index = 0
+        self.selected_backend = None  # None means auto
         self.init_ui()
 
     def init_ui(self):
@@ -64,6 +71,21 @@ class BiometricCaptureScreen(QWidget):
         self.privacy_banner = QLabel("Optional local analytics overlay. Not stored.")
         self.privacy_banner.setVisible(self.ml_enabled)
         layout.addWidget(self.privacy_banner)
+
+        # Camera selection controls
+        cam_row = QHBoxLayout()
+        self.device_select = QComboBox()
+        self.device_select.addItems(["0","1","2","3"])
+        self.device_select.setCurrentIndex(0)
+        self.device_select.currentTextChanged.connect(lambda v: setattr(self, 'selected_index', int(v)))
+        self.backend_select = QComboBox()
+        self.backend_select.addItems(["Auto","CAP_DSHOW","CAP_MSMF","CAP_ANY"])
+        self.backend_select.currentTextChanged.connect(self._backend_changed)
+        cam_row.addWidget(QLabel("Camera:"))
+        cam_row.addWidget(self.device_select)
+        cam_row.addWidget(QLabel("Backend:"))
+        cam_row.addWidget(self.backend_select)
+        layout.addLayout(cam_row)
 
         # Start Camera Button
         self.start_camera_button = QPushButton("Start Camera")
@@ -91,6 +113,26 @@ class BiometricCaptureScreen(QWidget):
         self.retina_button = QPushButton("Capture Retina")
         self.retina_button.clicked.connect(self.capture_retina)
         layout.addWidget(self.retina_button)
+
+        # Overrides controls (disabled when overlays are off)
+        ov_row = QHBoxLayout()
+        self.override_enable = QCheckBox("Override ML overlays")
+        self.override_enable.stateChanged.connect(lambda s: setattr(self, 'override_enabled', bool(s)))
+        self.override_gender_select = QComboBox()
+        self.override_gender_select.addItems(["None","Male","Female"])
+        self.override_gender_select.currentTextChanged.connect(self._gender_changed)
+        self.override_age_input = QLineEdit()
+        self.override_age_input.setPlaceholderText("Age e.g. 22")
+        self.override_age_input.textChanged.connect(self._age_changed)
+        ov_row.addWidget(self.override_enable)
+        ov_row.addWidget(QLabel("Gender:"))
+        ov_row.addWidget(self.override_gender_select)
+        ov_row.addWidget(QLabel("Age:"))
+        ov_row.addWidget(self.override_age_input)
+        layout.addLayout(ov_row)
+        self.override_enable.setEnabled(self.ml_enabled)
+        self.override_gender_select.setEnabled(self.ml_enabled)
+        self.override_age_input.setEnabled(self.ml_enabled)
 
         # Face Capture Button
         self.face_button = QPushButton("Capture Face")
@@ -130,23 +172,57 @@ class BiometricCaptureScreen(QWidget):
         self.continuous_camera_monitoring()
 
     def _open_camera(self) -> bool:
-        """Try opening camera with multiple backends and indices (Windows-friendly)."""
+        """Try opening camera with selected backend/index; fallback to auto scan."""
         if cv2 is None:
             return False
-        candidates = []
-        # Try indices 0-3 with common Windows APIs
-        for idx in (0, 1, 2, 3):
-            for api in (getattr(cv2, 'CAP_DSHOW', 0), getattr(cv2, 'CAP_MSMF', 0), getattr(cv2, 'CAP_ANY', 0)):
-                candidates.append((idx, api))
-        for idx, api in candidates:
+        # Use selected backend if not Auto
+        backend_name = self.backend_select.currentText() if hasattr(self, 'backend_select') else "Auto"
+        idx = self.selected_index if hasattr(self, 'selected_index') else 0
+        if backend_name != "Auto":
+            api = getattr(cv2, backend_name, getattr(cv2, 'CAP_ANY', 0))
             try:
                 cap = cv2.VideoCapture(idx, api)
                 if cap is not None and cap.isOpened():
                     self.camera = cap
                     return True
             except Exception:
+                pass
+        # Fallback: scan common combos
+        candidates = []
+        for scan_idx in (0, 1, 2, 3):
+            for api in (getattr(cv2, 'CAP_DSHOW', 0), getattr(cv2, 'CAP_MSMF', 0), getattr(cv2, 'CAP_ANY', 0)):
+                candidates.append((scan_idx, api))
+        for scan_idx, api in candidates:
+            try:
+                cap = cv2.VideoCapture(scan_idx, api)
+                if cap is not None and cap.isOpened():
+                    self.camera = cap
+                    return True
+            except Exception:
                 continue
         return False
+
+    def _backend_changed(self, name: str):
+        if name == "Auto":
+            self.selected_backend = None
+        else:
+            try:
+                self.selected_backend = getattr(cv2, name)
+            except Exception:
+                self.selected_backend = None
+
+    def _gender_changed(self, text: str):
+        if text == "None":
+            self.override_gender = None
+        else:
+            self.override_gender = text
+
+    def _age_changed(self, text: str):
+        try:
+            v = int(text)
+            self.override_age = v
+        except Exception:
+            self.override_age = None
 
     def test_ml_on_image(self):
         if cv2 is None:
@@ -199,8 +275,15 @@ class BiometricCaptureScreen(QWidget):
                 # Draw boxes and overlay text (no storage/logging)
                 for res in insights:
                     (x, y, w0, h0) = res["bbox"]
+                    # Apply overrides
+                    gender = res['gender']
+                    age = res['age']
+                    if self.override_enabled and self.override_gender:
+                        gender = self.override_gender
+                    if self.override_enabled and (self.override_age is not None):
+                        age = self._age_bucket_for_value(self.override_age)
                     cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
-                    text = f"{res['gender']} | Age {res['age']} | {res['emotion']}"
+                    text = f"{gender} | Age {age} | {res['emotion']}"
                     cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 0), 2)
             else:
                 # Minimal: draw face boxes without ML text when ML disabled
@@ -221,6 +304,16 @@ class BiometricCaptureScreen(QWidget):
         else:
             # Stop timer if read fails repeatedly
             self.timer.stop()
+
+    def _age_bucket_for_value(self, age: int) -> str:
+        buckets = [
+            (0, 2, "(0-2)"), (4, 6, "(4-6)"), (8, 12, "(8-12)"), (15, 20, "(15-20)"),
+            (25, 32, "(25-32)"), (38, 43, "(38-43)"), (48, 53, "(48-53)"), (60, 100, "(60-100)")
+        ]
+        for lo, hi, label in buckets:
+            if lo <= age <= hi:
+                return label
+        return "(25-32)" if 22 <= age <= 35 else "(60-100)" if age >= 60 else "(15-20)"
 
     def continuous_camera_monitoring(self):
         # Continuously monitor the camera feed for anomalies

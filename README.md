@@ -69,6 +69,14 @@ Primary directories are under `Phase 1A - Foundation/Month 3 - Prototype Develop
 
 Rationale: Modularity supports independent security analysis, accessibility evaluation, and performance studies. The storage module isolates cryptographic responsibilities; UI isolates human factors; ML utilities are optional and sandboxed.
 
+### Models & Overlays
+
+- Models folder: Place camera analytics models under `Phase 1A - Foundation/models`.
+	- Emotion (FER+ ONNX): `ferplus.onnx` from https://github.com/onnx/models/raw/main/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx
+	- Age/Gender (Caffe): `deploy_age.prototxt`, `age_net.caffemodel`, `deploy_gender.prototxt`, `gender_net.caffemodel` from https://github.com/spmallick/learnopencv/tree/master/AgeGender/models
+- Global overlays toggle: set environment variable `VOTEGUARD_OVERLAYS=0` to disable text/box overlays across demos and UI.
+- Default resolution: The application auto-detects `Phase 1A - Foundation/models` if present; otherwise falls back to `./models`.
+
 ## 7. Security & Trust Model
 
 Threat Assumptions:
