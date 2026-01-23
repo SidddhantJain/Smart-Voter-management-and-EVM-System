@@ -4,6 +4,7 @@ Language: Python (PyQt5)
 Handles: Fingerprint, Retina, and Face Capture
 """
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox, QStackedWidget
+from PyQt5.QtWidgets import QFileDialog
 from ui.voting_screen import VotingScreen
 from PyQt5.QtGui import QImage, QPixmap
 import sys
@@ -70,6 +71,12 @@ class BiometricCaptureScreen(QWidget):
         self.start_camera_button.setEnabled(cv2 is not None)
         layout.addWidget(self.start_camera_button)
 
+        # Test Image (ML) Button
+        self.test_image_button = QPushButton("Test Image (ML)")
+        self.test_image_button.clicked.connect(self.test_ml_on_image)
+        self.test_image_button.setEnabled(cv2 is not None)
+        layout.addWidget(self.test_image_button)
+
         # Fingerprint Capture Button
         self.fingerprint_button = QPushButton("Capture Fingerprint")
         self.fingerprint_button.clicked.connect(self.capture_fingerprint)
@@ -93,7 +100,16 @@ class BiometricCaptureScreen(QWidget):
         self.setLayout(layout)
 
     def start_camera(self):
-        if cv2 is None or self.camera is None or not self.camera.isOpened():
+        if cv2 is None:
+            QMessageBox.critical(self, "Camera Error", "OpenCV not installed. Install with: pip install opencv-python")
+            return
+        # Attempt to (re)open camera
+        if self.camera is None or not self.camera.isOpened():
+            try:
+                self.camera = cv2.VideoCapture(0)
+            except Exception:
+                self.camera = None
+        if self.camera is None or not self.camera.isOpened():
             QMessageBox.critical(self, "Camera Error", "Unable to access the camera.")
             self.audit.log("BIOMETRIC_COMPLETED", {
                 "session_id": getattr(self.stacked_widget, 'session_id', self.session_id),
@@ -115,6 +131,37 @@ class BiometricCaptureScreen(QWidget):
             pass
         # No PII; readiness is implicit
         self.continuous_camera_monitoring()
+
+    def test_ml_on_image(self):
+        if cv2 is None:
+            QMessageBox.critical(self, "ML Error", "OpenCV not installed. Install with: pip install opencv-python")
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Select image", "", "Images (*.png *.jpg *.jpeg);;All Files (*.*)")
+        if not path:
+            return
+        try:
+            img = cv2.imread(path)
+            if img is None:
+                raise ValueError("Failed to read image")
+            annotated = img.copy()
+            insights = []
+            try:
+                insights = analyze(img)
+            except Exception:
+                insights = []
+            for res in insights:
+                (x, y, w0, h0) = res.get("bbox", (0,0,0,0))
+                cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
+                text = f"{res.get('gender','?')} | Age {res.get('age','?')} | {res.get('emotion','?')}"
+                cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 0), 2)
+            rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb.shape
+            bytes_per_line = ch * w
+            qt_img = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            self.camera_label.setPixmap(QPixmap.fromImage(qt_img))
+            QMessageBox.information(self, "ML Test", f"Processed {len(insights)} face(s).")
+        except Exception as e:
+            QMessageBox.critical(self, "ML Test Error", str(e))
 
     def update_frame(self):
         if cv2 is None or self.camera is None:

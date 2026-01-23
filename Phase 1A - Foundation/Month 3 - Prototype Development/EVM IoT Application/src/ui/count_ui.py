@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox, QFileDialog, QCheckBox, QSpinBox
 from PyQt5.QtCore import Qt, QTimer
+from pathlib import Path
+import pyqtgraph as pg
 from voteguard.core.counting import tally
 from voteguard.config.env import data_dir, key_path
 from scripts.verify_ledger import verify as verify_ledger
@@ -56,6 +58,10 @@ class CountUI(QWidget):
         # Status bar label
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
+        # Chart area
+        self.plot = pg.PlotWidget()
+        self.plot.setBackground('w')
+        layout.addWidget(self.plot)
         self.setLayout(layout)
         self._counts = {}
         self._timer = QTimer(self)
@@ -112,9 +118,32 @@ class CountUI(QWidget):
             self.table.setItem(r, 1, QTableWidgetItem(choice))
             self.table.setItem(r, 2, QTableWidgetItem(str(c)))
             # Percentage based on per-election total
-            total_for_election = totals.get(election, c if choice == "TOTAL" else 0) or c if choice == "TOTAL" else totals.get(election, 0)
-            pct = 100.0 * (c / total_for_election) if total_for_election else 0.0
+            total_for_election = totals.get(election, 0)
+            pct = 100.0 if choice == "TOTAL" and total_for_election else (100.0 * (c / total_for_election) if total_for_election else 0.0)
             self.table.setItem(r, 3, QTableWidgetItem(f"{pct:.1f}%"))
+        # Draw chart for selected
+        self.draw_chart(selected, totals)
+
+    def draw_chart(self, selected: str, totals: dict):
+        self.plot.clear()
+        if selected == "All Elections":
+            labels = list(totals.keys())
+            values = [totals[e] for e in labels]
+            x = list(range(len(labels)))
+            bg = pg.BarGraphItem(x=x, height=values, width=0.6, brush=pg.mkBrush('#5c6bc0'))
+            self.plot.addItem(bg)
+            self.plot.getPlotItem().setTitle("Votes per Election")
+            self.plot.getPlotItem().getAxis('bottom').setTicks([list(zip(x, labels))])
+        else:
+            choices = self._counts.get(selected, {})
+            labels = list(choices.keys())
+            values = [choices[c] for c in labels]
+            x = list(range(len(labels)))
+            bg = pg.BarGraphItem(x=x, height=values, width=0.6, brush=pg.mkBrush('#26a69a'))
+            self.plot.addItem(bg)
+            self.plot.getPlotItem().setTitle(f"{selected} — Votes per Choice")
+            self.plot.getPlotItem().getAxis('bottom').setTicks([list(zip(x, labels))])
+        self.plot.getPlotItem().getAxis('left').setLabel(text='Count')
 
     def export_json(self):
         suggested = str((data_dir() / "results.json").resolve())
