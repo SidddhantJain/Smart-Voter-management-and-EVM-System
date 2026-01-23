@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from .config.env import data_dir, key_path
+from .config.env import data_dir, key_path, overlays_enabled
 from .adapters.storage_fernet_hashchain import HashChainedLedger, JsonCastRegistry
 from .adapters.audit_log_hashchain import HashChainedAudit
 from .adapters.chain_simulated import SimulatedAnchor
@@ -16,3 +16,7 @@ def bootstrap():
     chain = SimulatedAnchor()
     biometrics = MockBiometric()
     return CastVote(ledger, audit, registry, chain)
+
+
+# Global overlays toggle available to UI/camera components
+OVERLAYS_ENABLED = overlays_enabled()

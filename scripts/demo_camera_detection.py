@@ -13,6 +13,7 @@ sys.path.append(str(src_dir))
 
 from ml.emotion_recognizer import EmotionRecognizer
 from ml.demographics_recognizer import DemographicsRecognizer
+import os
 
 
 def _try_open_camera() -> cv2.VideoCapture:
@@ -56,6 +57,7 @@ def main():
     args = parser.parse_args()
 
     print("[Demo] Starting camera detection demo… Press 'q' to quit.")
+    overlays_on = os.getenv("VOTEGUARD_OVERLAYS", "1") == "1"
 
     # Initialize recognizers (will auto-download age/gender models if missing)
     emo = EmotionRecognizer()
@@ -95,15 +97,16 @@ def main():
                 label, conf = emo.predict(roi_rgb)
                 age_bucket, age_conf, gender_label, gender_conf = demo.predict(roi_rgb)
 
-                # Draw overlays
-                cv2.rectangle(frame_bgr, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                text = f"{gender_label} ({gender_conf:.2f}) | {age_bucket} ({age_conf:.2f}) | {label} ({conf:.2f})"
-                y_text = y - 10 if y - 10 > 20 else y + 25
-                cv2.putText(frame_bgr, text, (x, y_text), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50, 200, 255), 2, cv2.LINE_AA)
+                # Draw overlays if enabled
+                if overlays_on:
+                    cv2.rectangle(frame_bgr, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    text = f"{gender_label} ({gender_conf:.2f}) | {age_bucket} ({age_conf:.2f}) | {label} ({conf:.2f})"
+                    y_text = y - 10 if y - 10 > 20 else y + 25
+                    cv2.putText(frame_bgr, text, (x, y_text), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50, 200, 255), 2, cv2.LINE_AA)
 
             # Periodic console log
             now = time.time()
-            if now - last_log > 2.0 and len(faces) > 0:
+            if overlays_on and now - last_log > 2.0 and len(faces) > 0:
                 (x, y, w, h) = faces[0]
                 roi_rgb = frame_rgb[y:y+h, x:x+w]
                 label, conf = emo.predict(roi_rgb)
