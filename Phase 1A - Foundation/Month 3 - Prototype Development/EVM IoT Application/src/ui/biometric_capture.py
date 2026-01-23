@@ -105,18 +105,15 @@ class BiometricCaptureScreen(QWidget):
             return
         # Attempt to (re)open camera
         if self.camera is None or not self.camera.isOpened():
-            try:
-                self.camera = cv2.VideoCapture(0)
-            except Exception:
-                self.camera = None
-        if self.camera is None or not self.camera.isOpened():
-            QMessageBox.critical(self, "Camera Error", "Unable to access the camera.")
-            self.audit.log("BIOMETRIC_COMPLETED", {
-                "session_id": getattr(self.stacked_widget, 'session_id', self.session_id),
-                "camera_missing": True,
-                "simulated": self.simulation_mode,
-            })
-            return
+            if not self._open_camera():
+                QMessageBox.critical(self, "Camera Error", "Unable to access the camera.")
+                self.audit.log("BIOMETRIC_COMPLETED", {
+                    "session_id": getattr(self.stacked_widget, 'session_id', self.session_id),
+                    "camera_missing": True,
+                    "simulated": self.simulation_mode,
+                })
+                return
+        QMessageBox.information(self, "Camera", "Camera started successfully.")
         self.timer.start(30)
         # Audit ML enabled/disabled (no predictions logged)
         try:
@@ -131,6 +128,25 @@ class BiometricCaptureScreen(QWidget):
             pass
         # No PII; readiness is implicit
         self.continuous_camera_monitoring()
+
+    def _open_camera(self) -> bool:
+        """Try opening camera with multiple backends and indices (Windows-friendly)."""
+        if cv2 is None:
+            return False
+        candidates = []
+        # Try indices 0-3 with common Windows APIs
+        for idx in (0, 1, 2, 3):
+            for api in (getattr(cv2, 'CAP_DSHOW', 0), getattr(cv2, 'CAP_MSMF', 0), getattr(cv2, 'CAP_ANY', 0)):
+                candidates.append((idx, api))
+        for idx, api in candidates:
+            try:
+                cap = cv2.VideoCapture(idx, api)
+                if cap is not None and cap.isOpened():
+                    self.camera = cap
+                    return True
+            except Exception:
+                continue
+        return False
 
     def test_ml_on_image(self):
         if cv2 is None:
@@ -164,7 +180,8 @@ class BiometricCaptureScreen(QWidget):
             QMessageBox.critical(self, "ML Test Error", str(e))
 
     def update_frame(self):
-        if cv2 is None or self.camera is None:
+        if cv2 is None or self.camera is None or (not self.camera.isOpened()):
+            self.timer.stop()
             return
         ret, frame = self.camera.read()
         if ret:
@@ -201,6 +218,9 @@ class BiometricCaptureScreen(QWidget):
             bytes2 = ch2 * w2
             qt_ann = QImage(annotated.data, w2, h2, bytes2, QImage.Format_RGB888)
             self.camera_label.setPixmap(QPixmap.fromImage(qt_ann))
+        else:
+            # Stop timer if read fails repeatedly
+            self.timer.stop()
 
     def continuous_camera_monitoring(self):
         # Continuously monitor the camera feed for anomalies
