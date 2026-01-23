@@ -2,7 +2,7 @@
 Vote Visualizer Dialog for VoteGuard Pro EVM
 Language: Python (PyQt5)
 Shows: Candidate card added to paper chain, animated into ballot box,
-       and blockchain block appears to indicate storage.
+    and optional blockchain indicator (removed per request).
 """
 from PyQt5 import QtCore, QtGui, QtWidgets
 from pathlib import Path
@@ -38,7 +38,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         chain_label.setDefaultTextColor(QtGui.QColor("#333"))
         chain_label.setPos(20, 20)
 
-        box_rect = QtCore.QRectF(380, 430, 120, 100)
+        # Ballot box sized to fit the ballot card comfortably
+        box_rect = QtCore.QRectF(380, 430, 160, 120)
         self.ballot_box = self.scene.addRect(
             box_rect,
             QtGui.QPen(QtGui.QColor("#333")),
@@ -47,23 +48,13 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         box_text = self.scene.addText("Ballot Box")
         box_text.setDefaultTextColor(QtGui.QColor("#333"))
         box_text.setPos(box_rect.center().x() - 40, box_rect.top() - 22)
-
-        chain_block_rect = QtCore.QRectF(720, 240, 130, 80)
-        self.blockchain_block = self.scene.addRect(
-            chain_block_rect,
-            QtGui.QPen(QtGui.QColor("#333")),
-            QtGui.QBrush(QtGui.QColor("#bbdefb")),
-        )
-        self.blockchain_label = self.scene.addText("Blockchain Block")
-        self.blockchain_label.setDefaultTextColor(QtGui.QColor("#1a237e"))
-        self.blockchain_label.setPos(chain_block_rect.left() + 6, chain_block_rect.top() + 6)
-        self.blockchain_block.setOpacity(0.0)
-        self.blockchain_label.setOpacity(0.0)
+        # Blockchain block removed per request
 
     def _make_candidate_card(self, name: str, image_path: Path | None) -> QtWidgets.QGraphicsItemGroup:
         group = QtWidgets.QGraphicsItemGroup()
 
-        card_rect = QtCore.QRectF(0, 0, 200, 120)
+        # Ballot card sized smaller than ballot box
+        card_rect = QtCore.QRectF(0, 0, 120, 80)
         card = self.scene.addRect(
             card_rect,
             QtGui.QPen(QtGui.QColor("#444")),
@@ -74,13 +65,13 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         if image_path and Path(image_path).exists():
             pix = QtGui.QPixmap(str(image_path))
             if not pix.isNull():
-                pix = pix.scaled(80, 80, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                pix = pix.scaled(50, 50, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
                 img_item = self.scene.addPixmap(pix)
-                img_item.setPos(10, 10)
+                img_item.setPos(8, 8)
                 group.addToGroup(img_item)
         else:
             avatar = self.scene.addEllipse(
-                QtCore.QRectF(10, 10, 80, 80),
+                QtCore.QRectF(8, 8, 50, 50),
                 QtGui.QPen(QtGui.QColor("#666")),
                 QtGui.QBrush(QtGui.QColor("#eeeeee")),
             )
@@ -88,16 +79,16 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
 
         name_item = self.scene.addText(name or "Candidate")
         name_item.setDefaultTextColor(QtGui.QColor("#333"))
-        name_item.setPos(100, 20)
+        name_item.setPos(65, 12)
         font = name_item.font()
-        font.setPointSize(12)
+        font.setPointSize(10)
         font.setBold(True)
         name_item.setFont(font)
         group.addToGroup(name_item)
 
         status_item = self.scene.addText("Vote Prepared")
         status_item.setDefaultTextColor(QtGui.QColor("#555"))
-        status_item.setPos(100, 60)
+        status_item.setPos(65, 40)
         group.addToGroup(status_item)
 
         group.setPos(340, 60)
@@ -159,16 +150,13 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         card = self._make_candidate_card(candidate_name, Path(image_path) if image_path else None)
         start = card.pos()
         target_center = self.ballot_box.rect().center()
-        end = QtCore.QPointF(target_center.x() - 100, target_center.y() - 60)
+        # Center the smaller ballot card within the ballot box
+        end = QtCore.QPointF(target_center.x() - 60, target_center.y() - 40)
 
         def after_box():
+            # Fade out the ballot card and close
             self._animate_opacity(card, 1.0, 0.0, 1200)
-            self.blockchain_block.setOpacity(0.0)
-            self.blockchain_label.setOpacity(0.0)
-            self._animate_opacity(self.blockchain_block, 0.0, 1.0, 1200)
-            self._animate_opacity(self.blockchain_label, 0.0, 1.0, 1200)
-            # Auto-close after animation
-            QtCore.QTimer.singleShot(2200, self.accept)
+            QtCore.QTimer.singleShot(1500, self.accept)
 
         # Slow down the move animation for emphasis
         self._animate_move(card, start, end, 2500, on_done=after_box)
