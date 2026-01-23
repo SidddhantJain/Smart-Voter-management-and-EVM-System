@@ -25,7 +25,13 @@ if backend_path not in sys.path:
 class MainUI(QStackedWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("VoteGuard Pro - Main UI")
+        # Reflect global overlay status in window title
+        try:
+            from voteguard.config.env import overlays_enabled
+            overlay_flag = overlays_enabled()
+        except Exception:
+            overlay_flag = True
+        self.setWindowTitle(f"VoteGuard Pro - Main UI (Overlays: {'On' if overlay_flag else 'Off'})")
         self.showFullScreen()
         # Session tracking (for audit correlation only)
         self.session_id = None

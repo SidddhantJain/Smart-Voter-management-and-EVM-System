@@ -87,11 +87,7 @@ class BiometricCaptureScreen(QWidget):
         cam_row.addWidget(self.backend_select)
         layout.addLayout(cam_row)
 
-        # Start Camera Button
-        self.start_camera_button = QPushButton("Start Camera")
-        self.start_camera_button.clicked.connect(self.start_camera)
-        self.start_camera_button.setEnabled(cv2 is not None)
-        layout.addWidget(self.start_camera_button)
+        # Camera starts automatically; no manual start button
 
         # Test Image (ML) Button
         self.test_image_button = QPushButton("Test Image (ML)")
@@ -140,6 +136,33 @@ class BiometricCaptureScreen(QWidget):
         layout.addWidget(self.face_button)
 
         self.setLayout(layout)
+
+        # Auto-start camera and sentiment analysis with multi-person detection
+        if cv2 is not None:
+            if not self._open_camera():
+                try:
+                    from PyQt5.QtWidgets import QMessageBox
+                    QMessageBox.critical(self, "Camera Error", "Unable to access the camera.")
+                except Exception:
+                    pass
+                try:
+                    self.audit.log("BIOMETRIC_COMPLETED", {
+                        "session_id": getattr(self.stacked_widget, 'session_id', self.session_id),
+                        "camera_missing": True,
+                        "simulated": self.simulation_mode,
+                    })
+                except Exception:
+                    pass
+            else:
+                # Start continuous frame updates
+                self.timer.start(30)
+                # Audit ML overlay status
+                try:
+                    self.audit.log("ML_OVERLAY_STATUS", {
+                        "enabled": bool(self.ml_enabled),
+                    })
+                except Exception:
+                    pass
 
     def start_camera(self):
         if cv2 is None:
