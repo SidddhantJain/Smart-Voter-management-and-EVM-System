@@ -22,7 +22,8 @@ class DemographicsRecognizer:
 
     def __init__(self):
         repo_root = Path(__file__).resolve().parents[4]
-        self.models_dir = repo_root / "models"
+        # Default model directory: repo_root/Phase 1A - Foundation/models
+        self.models_dir = repo_root / "Phase 1A - Foundation" / "models"
         self.age_proto = self.models_dir / "deploy_age.prototxt"
         self.age_model = self.models_dir / "age_net.caffemodel"
         self.gender_proto = self.models_dir / "deploy_gender.prototxt"
