@@ -22,7 +22,7 @@ try:
     import serial  # optional
 except Exception:
     serial = None
-from voteguard.config.env import enable_camera, enable_ml, overlays_enabled
+from voteguard.config.env import enable_camera, overlays_enabled
 from voteguard.adapters.ml_analytics_optional import analyze, models_loaded
 from voteguard.adapters.audit_helper import SafeAuditLogger
 
@@ -44,8 +44,8 @@ class BiometricCaptureScreen(QWidget):
         self.device_port = "Port_#0003.Hub_#0003"  # Update with actual port
         self.serial_connection = None
         self.simulation_mode = True if cv2 is None else False
-        # Privacy banner for optional ML overlays (respect global overlays toggle)
-        self.ml_enabled = overlays_enabled() and enable_camera() and enable_ml() and (cv2 is not None)
+        # ML overlays enabled by default when overlays are on and camera available
+        self.ml_enabled = overlays_enabled() and enable_camera() and (cv2 is not None)
         self.audit = SafeAuditLogger()
         # Overrides for ML overlays
         self.override_enabled = False
@@ -62,6 +62,15 @@ class BiometricCaptureScreen(QWidget):
         # Instructions
         self.label = QLabel("Please capture your biometrics:")
         layout.addWidget(self.label)
+
+        # Header row with overlay status badge (top-right)
+        header_row = QHBoxLayout()
+        self.header_spacer = QLabel("")
+        header_row.addWidget(self.header_spacer)
+        self.overlay_status_label = QLabel("Overlays: On" if self.ml_enabled else "Overlays: Off")
+        self.overlay_status_label.setStyleSheet("padding: 6px 10px; border-radius: 12px; background: #eef; color: #333; font-size: 14px;")
+        header_row.addWidget(self.overlay_status_label)
+        layout.addLayout(header_row)
 
         # Camera Feed
         self.camera_label = QLabel()
@@ -130,6 +139,11 @@ class BiometricCaptureScreen(QWidget):
         self.override_gender_select.setEnabled(self.ml_enabled)
         self.override_age_input.setEnabled(self.ml_enabled)
 
+        # Live overlay status refresh (poll env toggle)
+        self.overlay_status_timer = QTimer(self)
+        self.overlay_status_timer.timeout.connect(self._refresh_overlay_status)
+        self.overlay_status_timer.start(500)
+
         # Face Capture Button
         self.face_button = QPushButton("Capture Face")
         self.face_button.clicked.connect(self.capture_face)
@@ -163,6 +177,16 @@ class BiometricCaptureScreen(QWidget):
                     })
                 except Exception:
                     pass
+
+    def _refresh_overlay_status(self):
+        """Update overlay status badge and enable/disable controls live."""
+        new_status = overlays_enabled() and enable_camera() and (cv2 is not None)
+        if new_status != self.ml_enabled:
+            self.ml_enabled = new_status
+            self.overlay_status_label.setText("Overlays: On" if self.ml_enabled else "Overlays: Off")
+            self.override_enable.setEnabled(self.ml_enabled)
+            self.override_gender_select.setEnabled(self.ml_enabled)
+            self.override_age_input.setEnabled(self.ml_enabled)
 
     def start_camera(self):
         if cv2 is None:
