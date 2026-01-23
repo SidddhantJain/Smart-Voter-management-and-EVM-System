@@ -123,7 +123,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         line_pen.setWidth(1)
         for i in range(3):
             y = 36 + i * 14
-            self.scene.addLine(60, y, base_rect.width() - 10, y, line_pen)
+            line_item = self.scene.addLine(60, y, base_rect.width() - 10, y, line_pen)
+            group.addToGroup(line_item)
 
         if image_path and Path(image_path).exists():
             pix = QtGui.QPixmap(str(image_path))
@@ -227,7 +228,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         easing = QtCore.QEasingCurve(QtCore.QEasingCurve.InOutQuad)
 
         def _update(value: float):
-            item.setOpacity(easing.valueForProgress(value))
+            p = easing.valueForProgress(value)
+            item.setOpacity(start + (end - start) * p)
 
         def _finish():
             if callable(on_done):
@@ -252,7 +254,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         easing = QtCore.QEasingCurve(QtCore.QEasingCurve.OutBack)
 
         def _update(value: float):
-            item.setScale(easing.valueForProgress(value))
+            p = easing.valueForProgress(value)
+            item.setScale(start + (end - start) * p)
 
         def _finish():
             if callable(on_done):
@@ -277,7 +280,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         easing = QtCore.QEasingCurve(QtCore.QEasingCurve.OutBack)
 
         def _update(value: float):
-            item.setRotation(easing.valueForProgress(value))
+            p = easing.valueForProgress(value)
+            item.setRotation(start_deg + (end_deg - start_deg) * p)
 
         def _finish():
             if callable(on_done):
