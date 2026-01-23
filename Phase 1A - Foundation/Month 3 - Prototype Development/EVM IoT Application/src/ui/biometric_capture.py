@@ -524,14 +524,8 @@ class BiometricCaptureScreen(QWidget):
 
     def capture_face(self):
         self.simulate_biometric(input_type="Face")
-        # Transition to Voting Screen
-        parties = [
-            {"name": "Party A", "symbol": "Symbol A"},
-            {"name": "Party B", "symbol": "Symbol B"},
-            {"name": "Party C", "symbol": "Symbol C"},
-            {"name": "Party D", "symbol": "Symbol D"},
-            {"name": "Party E", "symbol": "Symbol E"},
-        ]
+        # Transition to Voting Screen using admin-managed candidate list
+        parties = self._load_parties_from_config()
         # Read propagated IDs (from AadhaarEntry)
         aadhaar_id, voter_id = getattr(
             self.stacked_widget, "current_voter_ids", (None, None)
@@ -563,6 +557,37 @@ class BiometricCaptureScreen(QWidget):
         if self.serial_connection and self.serial_connection.is_open:
             self.serial_connection.close()
         super().closeEvent(event)
+
+    def _load_parties_from_config(self):
+        import json
+        from pathlib import Path
+
+        base = Path(__file__).resolve().parents[3]
+        fp = base / "data" / "candidates.json"
+        parties = []
+        try:
+            with fp.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+                items = data.get("candidates", []) if isinstance(data, dict) else data
+                for it in items:
+                    if not it.get("enabled", True):
+                        continue
+                    parties.append(
+                        {
+                            "name": it.get("party") or it.get("candidate") or "",
+                            "symbol": it.get("symbol", ""),
+                            "candidate_name": it.get("candidate", ""),
+                            "image_path": it.get("image_path", ""),
+                            "logo_path": it.get("logo_path", ""),
+                        }
+                    )
+        except Exception:
+            parties = [
+                {"name": "Party A", "symbol": "Symbol A"},
+                {"name": "Party B", "symbol": "Symbol B"},
+                {"name": "Party C", "symbol": "Symbol C"},
+            ]
+        return parties
 
 
 if __name__ == "__main__":
