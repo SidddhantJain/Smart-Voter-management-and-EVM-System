@@ -3,12 +3,27 @@ Biometric Capture Screen for VoteGuard Pro EVM
 Language: Python (PyQt5)
 Handles: Fingerprint, Retina, and Face Capture
 """
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QStackedWidget
-from PyQt5.QtWidgets import QFileDialog, QComboBox, QLineEdit, QCheckBox
-from ui.voting_screen import VotingScreen
-from PyQt5.QtGui import QImage, QPixmap
-import sys
+
 import os
+import sys
+
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+from ui.voting_screen import VotingScreen
+
 try:
     import cv2  # optional
 except Exception:
@@ -18,18 +33,22 @@ try:
 except Exception:
     np = None
 from PyQt5.QtCore import QTimer
+
 try:
     import serial  # optional
 except Exception:
     serial = None
-from voteguard.config.env import enable_camera, overlays_enabled
-from voteguard.adapters.ml_analytics_optional import analyze, models_loaded
 from voteguard.adapters.audit_helper import SafeAuditLogger
+from voteguard.adapters.ml_analytics_optional import analyze, models_loaded
+from voteguard.config.env import enable_camera, overlays_enabled
 
 # Ensure the backend directory is in the Python path
-backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
+backend_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "backend")
+)
 if backend_path not in sys.path:
     sys.path.append(backend_path)
+
 
 class BiometricCaptureScreen(QWidget):
     def __init__(self, stacked_widget: QStackedWidget):
@@ -37,7 +56,7 @@ class BiometricCaptureScreen(QWidget):
         self.stacked_widget = stacked_widget
         self.setWindowTitle("VoteGuard Pro - Biometric Capture")
         self.setGeometry(100, 100, 800, 600)
-        self.session_id = getattr(self.stacked_widget, 'session_id', None)
+        self.session_id = getattr(self.stacked_widget, "session_id", None)
         self.camera = cv2.VideoCapture(0) if cv2 is not None else None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
@@ -50,7 +69,7 @@ class BiometricCaptureScreen(QWidget):
         # Overrides for ML overlays
         self.override_enabled = False
         self.override_gender = None  # "Male"|"Female"|None
-        self.override_age = None     # int or None
+        self.override_age = None  # int or None
         # Camera selection
         self.selected_index = 0
         self.selected_backend = None  # None means auto
@@ -67,8 +86,12 @@ class BiometricCaptureScreen(QWidget):
         header_row = QHBoxLayout()
         self.header_spacer = QLabel("")
         header_row.addWidget(self.header_spacer)
-        self.overlay_status_label = QLabel("Overlays: On" if self.ml_enabled else "Overlays: Off")
-        self.overlay_status_label.setStyleSheet("padding: 6px 10px; border-radius: 12px; background: #eef; color: #333; font-size: 14px;")
+        self.overlay_status_label = QLabel(
+            "Overlays: On" if self.ml_enabled else "Overlays: Off"
+        )
+        self.overlay_status_label.setStyleSheet(
+            "padding: 6px 10px; border-radius: 12px; background: #eef; color: #333; font-size: 14px;"
+        )
         header_row.addWidget(self.overlay_status_label)
         layout.addLayout(header_row)
 
@@ -81,14 +104,23 @@ class BiometricCaptureScreen(QWidget):
         self.privacy_banner.setVisible(self.ml_enabled)
         layout.addWidget(self.privacy_banner)
 
+        # Model availability banner
+        self.model_banner = QLabel("")
+        self.model_banner.setStyleSheet(
+            "padding: 6px 10px; border-radius: 6px; background: #f7f7f7; color: #333; font-size: 13px;"
+        )
+        layout.addWidget(self.model_banner)
+
         # Camera selection controls
         cam_row = QHBoxLayout()
         self.device_select = QComboBox()
-        self.device_select.addItems(["0","1","2","3"])
+        self.device_select.addItems(["0", "1", "2", "3"])
         self.device_select.setCurrentIndex(0)
-        self.device_select.currentTextChanged.connect(lambda v: setattr(self, 'selected_index', int(v)))
+        self.device_select.currentTextChanged.connect(
+            lambda v: setattr(self, "selected_index", int(v))
+        )
         self.backend_select = QComboBox()
-        self.backend_select.addItems(["Auto","CAP_DSHOW","CAP_MSMF","CAP_ANY"])
+        self.backend_select.addItems(["Auto", "CAP_DSHOW", "CAP_MSMF", "CAP_ANY"])
         self.backend_select.currentTextChanged.connect(self._backend_changed)
         cam_row.addWidget(QLabel("Camera:"))
         cam_row.addWidget(self.device_select)
@@ -97,12 +129,6 @@ class BiometricCaptureScreen(QWidget):
         layout.addLayout(cam_row)
 
         # Camera starts automatically; no manual start button
-
-        # Test Image (ML) Button
-        self.test_image_button = QPushButton("Test Image (ML)")
-        self.test_image_button.clicked.connect(self.test_ml_on_image)
-        self.test_image_button.setEnabled(cv2 is not None)
-        layout.addWidget(self.test_image_button)
 
         # Fingerprint Capture Button
         self.fingerprint_button = QPushButton("Capture Fingerprint")
@@ -122,9 +148,11 @@ class BiometricCaptureScreen(QWidget):
         # Overrides controls (disabled when overlays are off)
         ov_row = QHBoxLayout()
         self.override_enable = QCheckBox("Override ML overlays")
-        self.override_enable.stateChanged.connect(lambda s: setattr(self, 'override_enabled', bool(s)))
+        self.override_enable.stateChanged.connect(
+            lambda s: setattr(self, "override_enabled", bool(s))
+        )
         self.override_gender_select = QComboBox()
-        self.override_gender_select.addItems(["None","Male","Female"])
+        self.override_gender_select.addItems(["None", "Male", "Female"])
         self.override_gender_select.currentTextChanged.connect(self._gender_changed)
         self.override_age_input = QLineEdit()
         self.override_age_input.setPlaceholderText("Age e.g. 22")
@@ -156,15 +184,23 @@ class BiometricCaptureScreen(QWidget):
             if not self._open_camera():
                 try:
                     from PyQt5.QtWidgets import QMessageBox
-                    QMessageBox.critical(self, "Camera Error", "Unable to access the camera.")
+
+                    QMessageBox.critical(
+                        self, "Camera Error", "Unable to access the camera."
+                    )
                 except Exception:
                     pass
                 try:
-                    self.audit.log("BIOMETRIC_COMPLETED", {
-                        "session_id": getattr(self.stacked_widget, 'session_id', self.session_id),
-                        "camera_missing": True,
-                        "simulated": self.simulation_mode,
-                    })
+                    self.audit.log(
+                        "BIOMETRIC_COMPLETED",
+                        {
+                            "session_id": getattr(
+                                self.stacked_widget, "session_id", self.session_id
+                            ),
+                            "camera_missing": True,
+                            "simulated": self.simulation_mode,
+                        },
+                    )
                 except Exception:
                     pass
             else:
@@ -172,9 +208,17 @@ class BiometricCaptureScreen(QWidget):
                 self.timer.start(30)
                 # Audit ML overlay status
                 try:
-                    self.audit.log("ML_OVERLAY_STATUS", {
-                        "enabled": bool(self.ml_enabled),
-                    })
+                    self.audit.log(
+                        "ML_OVERLAY_STATUS",
+                        {
+                            "enabled": bool(self.ml_enabled),
+                        },
+                    )
+                except Exception:
+                    pass
+                # Initialize model banner
+                try:
+                    self._refresh_model_banner()
                 except Exception:
                     pass
 
@@ -183,36 +227,75 @@ class BiometricCaptureScreen(QWidget):
         new_status = overlays_enabled() and enable_camera() and (cv2 is not None)
         if new_status != self.ml_enabled:
             self.ml_enabled = new_status
-            self.overlay_status_label.setText("Overlays: On" if self.ml_enabled else "Overlays: Off")
+            self.overlay_status_label.setText(
+                "Overlays: On" if self.ml_enabled else "Overlays: Off"
+            )
             self.override_enable.setEnabled(self.ml_enabled)
             self.override_gender_select.setEnabled(self.ml_enabled)
             self.override_age_input.setEnabled(self.ml_enabled)
+        # Always refresh model banner
+        try:
+            self._refresh_model_banner()
+        except Exception:
+            pass
+
+    def _refresh_model_banner(self):
+        """Show availability of optional ML models (emotion, age/gender)."""
+        ml_avail = {}
+        try:
+            ml_avail = models_loaded()
+        except Exception:
+            ml_avail = {}
+        emotion_ok = bool(ml_avail.get("emotion"))
+        demo_ok = bool(ml_avail.get("demographics"))
+        status_text = (
+            f"Models — Emotion: {'Available' if emotion_ok else 'Unavailable'}; "
+            f"Age/Gender: {'Available' if demo_ok else 'Unavailable'}"
+        )
+        self.model_banner.setText(status_text)
 
     def start_camera(self):
         if cv2 is None:
-            QMessageBox.critical(self, "Camera Error", "OpenCV not installed. Install with: pip install opencv-python")
+            QMessageBox.critical(
+                self,
+                "Camera Error",
+                "OpenCV not installed. Install with: pip install opencv-python",
+            )
             return
         # Attempt to (re)open camera
         if self.camera is None or not self.camera.isOpened():
             if not self._open_camera():
-                QMessageBox.critical(self, "Camera Error", "Unable to access the camera.")
-                self.audit.log("BIOMETRIC_COMPLETED", {
-                    "session_id": getattr(self.stacked_widget, 'session_id', self.session_id),
-                    "camera_missing": True,
-                    "simulated": self.simulation_mode,
-                })
+                QMessageBox.critical(
+                    self, "Camera Error", "Unable to access the camera."
+                )
+                self.audit.log(
+                    "BIOMETRIC_COMPLETED",
+                    {
+                        "session_id": getattr(
+                            self.stacked_widget, "session_id", self.session_id
+                        ),
+                        "camera_missing": True,
+                        "simulated": self.simulation_mode,
+                    },
+                )
                 return
         QMessageBox.information(self, "Camera", "Camera started successfully.")
         self.timer.start(30)
         # Audit ML enabled/disabled (no predictions logged)
         try:
-            self.audit.log("ML_OVERLAY_STATUS", {
-                "enabled": bool(self.ml_enabled),
-            })
+            self.audit.log(
+                "ML_OVERLAY_STATUS",
+                {
+                    "enabled": bool(self.ml_enabled),
+                },
+            )
             if self.ml_enabled:
                 ml_avail = models_loaded()
                 if not (ml_avail.get("emotion") or ml_avail.get("demographics")):
-                    self.audit.log("ML_MODEL_LOAD_FAILED", {"details": "optional models not available"})
+                    self.audit.log(
+                        "ML_MODEL_LOAD_FAILED",
+                        {"details": "optional models not available"},
+                    )
         except Exception:
             pass
         # No PII; readiness is implicit
@@ -223,10 +306,14 @@ class BiometricCaptureScreen(QWidget):
         if cv2 is None:
             return False
         # Use selected backend if not Auto
-        backend_name = self.backend_select.currentText() if hasattr(self, 'backend_select') else "Auto"
-        idx = self.selected_index if hasattr(self, 'selected_index') else 0
+        backend_name = (
+            self.backend_select.currentText()
+            if hasattr(self, "backend_select")
+            else "Auto"
+        )
+        idx = self.selected_index if hasattr(self, "selected_index") else 0
         if backend_name != "Auto":
-            api = getattr(cv2, backend_name, getattr(cv2, 'CAP_ANY', 0))
+            api = getattr(cv2, backend_name, getattr(cv2, "CAP_ANY", 0))
             try:
                 cap = cv2.VideoCapture(idx, api)
                 if cap is not None and cap.isOpened():
@@ -237,7 +324,11 @@ class BiometricCaptureScreen(QWidget):
         # Fallback: scan common combos
         candidates = []
         for scan_idx in (0, 1, 2, 3):
-            for api in (getattr(cv2, 'CAP_DSHOW', 0), getattr(cv2, 'CAP_MSMF', 0), getattr(cv2, 'CAP_ANY', 0)):
+            for api in (
+                getattr(cv2, "CAP_DSHOW", 0),
+                getattr(cv2, "CAP_MSMF", 0),
+                getattr(cv2, "CAP_ANY", 0),
+            ):
                 candidates.append((scan_idx, api))
         for scan_idx, api in candidates:
             try:
@@ -271,37 +362,6 @@ class BiometricCaptureScreen(QWidget):
         except Exception:
             self.override_age = None
 
-    def test_ml_on_image(self):
-        if cv2 is None:
-            QMessageBox.critical(self, "ML Error", "OpenCV not installed. Install with: pip install opencv-python")
-            return
-        path, _ = QFileDialog.getOpenFileName(self, "Select image", "", "Images (*.png *.jpg *.jpeg);;All Files (*.*)")
-        if not path:
-            return
-        try:
-            img = cv2.imread(path)
-            if img is None:
-                raise ValueError("Failed to read image")
-            annotated = img.copy()
-            insights = []
-            try:
-                insights = analyze(img)
-            except Exception:
-                insights = []
-            for res in insights:
-                (x, y, w0, h0) = res.get("bbox", (0,0,0,0))
-                cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
-                text = f"{res.get('gender','?')} | Age {res.get('age','?')} | {res.get('emotion','?')}"
-                cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 0), 2)
-            rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb.shape
-            bytes_per_line = ch * w
-            qt_img = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            self.camera_label.setPixmap(QPixmap.fromImage(qt_img))
-            QMessageBox.information(self, "ML Test", f"Processed {len(insights)} face(s).")
-        except Exception as e:
-            QMessageBox.critical(self, "ML Test Error", str(e))
-
     def update_frame(self):
         if cv2 is None or self.camera is None or (not self.camera.isOpened()):
             self.timer.stop()
@@ -312,7 +372,9 @@ class BiometricCaptureScreen(QWidget):
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
-            qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            qt_image = QImage(
+                rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888
+            )
             annotated = rgb_frame.copy()
             if self.ml_enabled:
                 try:
@@ -321,25 +383,39 @@ class BiometricCaptureScreen(QWidget):
                     insights = []
                 # Draw boxes and overlay text (no storage/logging)
                 for res in insights:
-                    (x, y, w0, h0) = res["bbox"]
+                    x, y, w0, h0 = res["bbox"]
                     # Apply overrides
-                    gender = res['gender']
-                    age = res['age']
+                    gender = res["gender"]
+                    age = res["age"]
                     if self.override_enabled and self.override_gender:
                         gender = self.override_gender
                     if self.override_enabled and (self.override_age is not None):
                         age = self._age_bucket_for_value(self.override_age)
                     cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
                     text = f"{gender} | Age {age} | {res['emotion']}"
-                    cv2.putText(annotated, text, (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 0), 2)
+                    cv2.putText(
+                        annotated,
+                        text,
+                        (x, y - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.55,
+                        (255, 0, 0),
+                        2,
+                    )
             else:
                 # Minimal: draw face boxes without ML text when ML disabled
                 try:
                     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                    faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
-                    for (x, y, w0, h0) in faces:
-                        cv2.rectangle(annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2)
+                    face_cascade = cv2.CascadeClassifier(
+                        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+                    )
+                    faces = face_cascade.detectMultiScale(
+                        gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
+                    )
+                    for x, y, w0, h0 in faces:
+                        cv2.rectangle(
+                            annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2
+                        )
                 except Exception:
                     pass
 
@@ -354,8 +430,14 @@ class BiometricCaptureScreen(QWidget):
 
     def _age_bucket_for_value(self, age: int) -> str:
         buckets = [
-            (0, 2, "(0-2)"), (4, 6, "(4-6)"), (8, 12, "(8-12)"), (15, 20, "(15-20)"),
-            (25, 32, "(25-32)"), (38, 43, "(38-43)"), (48, 53, "(48-53)"), (60, 100, "(60-100)")
+            (0, 2, "(0-2)"),
+            (4, 6, "(4-6)"),
+            (8, 12, "(8-12)"),
+            (15, 20, "(15-20)"),
+            (25, 32, "(25-32)"),
+            (38, 43, "(38-43)"),
+            (48, 53, "(48-53)"),
+            (60, 100, "(60-100)"),
         ]
         for lo, hi, label in buckets:
             if lo <= age <= hi:
@@ -371,10 +453,18 @@ class BiometricCaptureScreen(QWidget):
         if ret:
             try:
                 gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                face_cascade = cv2.CascadeClassifier(
+                    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+                )
+                faces = face_cascade.detectMultiScale(
+                    gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+                )
                 if len(faces) > 1:
-                    QMessageBox.warning(self, "Anomaly Detected", "Multiple faces detected. Please ensure only one voter is present.")
+                    QMessageBox.warning(
+                        self,
+                        "Anomaly Detected",
+                        "Multiple faces detected. Please ensure only one voter is present.",
+                    )
                     print("[MONITOR] Multiple faces detected.")
             except Exception:
                 pass
@@ -384,15 +474,25 @@ class BiometricCaptureScreen(QWidget):
 
     def connect_to_device(self):
         if serial is None:
-            QMessageBox.warning(self, "Simulation Mode", "Serial device not available; running in simulation.")
+            QMessageBox.warning(
+                self,
+                "Simulation Mode",
+                "Serial device not available; running in simulation.",
+            )
             self.simulate_button.setVisible(True)
             return
         try:
-            self.serial_connection = serial.Serial(self.device_port, baudrate=9600, timeout=1)
-            QMessageBox.information(self, "Device Connection", "Biometric device connected successfully.")
+            self.serial_connection = serial.Serial(
+                self.device_port, baudrate=9600, timeout=1
+            )
+            QMessageBox.information(
+                self, "Device Connection", "Biometric device connected successfully."
+            )
             self.simulate_button.setVisible(False)
         except Exception as e:
-            QMessageBox.critical(self, "Connection Error", f"Failed to connect to the device: {e}")
+            QMessageBox.critical(
+                self, "Connection Error", f"Failed to connect to the device: {e}"
+            )
             self.simulate_button.setVisible(True)
 
     def capture_fingerprint(self):
@@ -401,13 +501,22 @@ class BiometricCaptureScreen(QWidget):
 
     def simulate_biometric(self, input_type="Biometric"):
         self.simulation_mode = True
-        QMessageBox.information(self, "Simulation Mode", f"Simulated {input_type} capture successful.")
+        QMessageBox.information(
+            self, "Simulation Mode", f"Simulated {input_type} capture successful."
+        )
         print(f"[SIMULATION] {input_type} capture simulated.")
-        self.audit.log("BIOMETRIC_COMPLETED", {
-            "session_id": getattr(self.stacked_widget, 'session_id', self.session_id),
-            "camera_missing": (cv2 is None) or (self.camera is None) or (not self.camera.isOpened()),
-            "simulated": True,
-        })
+        self.audit.log(
+            "BIOMETRIC_COMPLETED",
+            {
+                "session_id": getattr(
+                    self.stacked_widget, "session_id", self.session_id
+                ),
+                "camera_missing": (cv2 is None)
+                or (self.camera is None)
+                or (not self.camera.isOpened()),
+                "simulated": True,
+            },
+        )
 
     def capture_retina(self):
         self.simulate_biometric(input_type="Retina")
@@ -424,13 +533,24 @@ class BiometricCaptureScreen(QWidget):
             {"name": "Party E", "symbol": "Symbol E"},
         ]
         # Read propagated IDs (from AadhaarEntry)
-        aadhaar_id, voter_id = getattr(self.stacked_widget, 'current_voter_ids', (None, None))
-        voting_screen = VotingScreen("State Assembly", parties, aadhaar_id=aadhaar_id, voter_id=voter_id, session_id=getattr(self.stacked_widget, 'session_id', self.session_id))
+        aadhaar_id, voter_id = getattr(
+            self.stacked_widget, "current_voter_ids", (None, None)
+        )
+        voting_screen = VotingScreen(
+            "State Assembly",
+            parties,
+            aadhaar_id=aadhaar_id,
+            voter_id=voter_id,
+            session_id=getattr(self.stacked_widget, "session_id", self.session_id),
+        )
         self.stacked_widget.addWidget(voting_screen)
         try:
             from voteguard.core.state_machine import State
+
             if hasattr(self.stacked_widget, "navigate_to"):
-                self.stacked_widget.navigate_to(self.stacked_widget.indexOf(voting_screen), State.BALLOT_SELECTION)
+                self.stacked_widget.navigate_to(
+                    self.stacked_widget.indexOf(voting_screen), State.BALLOT_SELECTION
+                )
             else:
                 self.stacked_widget.setCurrentWidget(voting_screen)
         except Exception:
@@ -443,6 +563,7 @@ class BiometricCaptureScreen(QWidget):
         if self.serial_connection and self.serial_connection.is_open:
             self.serial_connection.close()
         super().closeEvent(event)
+
 
 if __name__ == "__main__":
     app = QApplication([])
