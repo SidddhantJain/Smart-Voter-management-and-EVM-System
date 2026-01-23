@@ -469,19 +469,14 @@ Findings
 	- `requirements.txt` missing packages used in code: `web3`, `opencv-python`, `numpy`, `scikit-learn`, `tensorflow`, `pyserial`.
 	- No lockfile present; recommend pinning versions.
 - **FFI Risks:** `crypto.so` and hardware `.so` libraries are not present → loading will fail; ensure signed binaries and strict path controls.
-- **Input Validation:** Aadhaar numeric/length check only; voter ID unchecked; biometric capture simulated. Add strong validation.
-- **Logging Sensitivity:** Ensure audit log excludes PII; encrypted log key must be protected.
 - **Secure Defaults Checklist:**
 	- [ ] No hardcoded keys or secrets.
 	- [ ] Enforce least privilege for file access.
 	- [ ] Validate all inputs (Aadhaar format, voter ID, image data).
-	- [ ] Fail closed on device/crypto load errors.
 	- [ ] Pin dependencies; run SCA.
-
 Security TODO (Prioritized)
 1. Remove hardcoded key in `utils/logger.py`; load from env/secret vault.
 2. Move `key.key` out of repo; add `.gitignore` and secret loading.
-3. Add robust validation and error handling paths across UI/Backend.
 4. Create a secure `requirements.txt` with all used deps and pin versions; add SCA in CI.
 5. Sign and verify FFI libraries; add integrity checks.
 6. Implement RBAC for admin-only views (counting, dashboard).

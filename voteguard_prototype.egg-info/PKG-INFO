@@ -93,35 +93,23 @@ Trust Boundaries:
 Protections:
 
 - Cryptographic Storage: Votes are encrypted via `cryptography.Fernet` with a file-based key. The ledger is append-only, re-encrypted on write.
-- Double-Vote Prevention: A cast registry prevents re-voting by identifiers within the session context.
-- Audit Logging: Operational events are encrypted and recorded to preserve transparency while limiting sensitive exposure.
-
 Attack Surface Analysis:
 
-- Key Management: Keys stored locally are vulnerable if not managed externally; the design recommends secure key stores and rotation.
-- FFI Boundaries: Hardware/Rust libraries are placeholders; production use requires signed artifacts, integrity checks, and sandboxing.
 - UI Manipulation: Timing and dialog sequencing have been hardened to prevent overlapping events; further state machine formalization is recommended.
 
-Failure & Recovery:
 
-- Decryption Errors: Storage reinitialization and operator alerts; recovery procedures must ensure integrity of prior writes.
 - Device Failures: Fallback to simulation paths; operator notification.
 - ML Failures: Overlays degrade gracefully to “Unknown”; no effect on voting capability.
-
-## 8. Accessibility & Inclusive Design
 
 Accessibility is treated as a correctness constraint. The voter journey emphasizes clarity, predictability, and minimal cognitive load. UI components are designed to support diverse users, including those with visual, motor, cognitive, or linguistic differences.
 
 Design Principles and Practices:
-
 - Clear Sequencing: Modal dialogs and controlled timing avoid overlapping visual events and reduce confusion.
 - Readability: High-contrast styles and large targets; avoid rapid, distracting animations.
 - Error Recovery: Explicit messages with descriptive guidance; no silent failures.
-- Cognitive Load: Simplified flows; consistent placement and wording; minimal required memory.
 - Assistive Signals: Overlays and confirmations that reinforce actions without reliance on complex icons.
 
 Alignment: The design aims toward WCAG-aligned practices (perceptible, operable, understandable) and treats accessibility failures as system correctness failures, not cosmetic defects.
-
 ## 9. Implementation Details
 
 - Languages & Frameworks: Python (PyQt5, OpenCV, NumPy), optional TensorFlow/ONNXRuntime for ML, C++ stubs for devices, Rust stub for crypto.
@@ -488,19 +476,14 @@ Findings
 	- `requirements.txt` missing packages used in code: `web3`, `opencv-python`, `numpy`, `scikit-learn`, `tensorflow`, `pyserial`.
 	- No lockfile present; recommend pinning versions.
 - **FFI Risks:** `crypto.so` and hardware `.so` libraries are not present → loading will fail; ensure signed binaries and strict path controls.
-- **Input Validation:** Aadhaar numeric/length check only; voter ID unchecked; biometric capture simulated. Add strong validation.
-- **Logging Sensitivity:** Ensure audit log excludes PII; encrypted log key must be protected.
 - **Secure Defaults Checklist:**
 	- [ ] No hardcoded keys or secrets.
 	- [ ] Enforce least privilege for file access.
 	- [ ] Validate all inputs (Aadhaar format, voter ID, image data).
-	- [ ] Fail closed on device/crypto load errors.
 	- [ ] Pin dependencies; run SCA.
-
 Security TODO (Prioritized)
 1. Remove hardcoded key in `utils/logger.py`; load from env/secret vault.
 2. Move `key.key` out of repo; add `.gitignore` and secret loading.
-3. Add robust validation and error handling paths across UI/Backend.
 4. Create a secure `requirements.txt` with all used deps and pin versions; add SCA in CI.
 5. Sign and verify FFI libraries; add integrity checks.
 6. Implement RBAC for admin-only views (counting, dashboard).
