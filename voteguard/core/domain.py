@@ -1,7 +1,8 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Optional, Literal, Dict, Any
+
 import time
+from dataclasses import dataclass
+from typing import Any, Dict, Literal, Optional
 
 VoteChoice = str  # candidate identifier or name (no PII)
 ElectionType = Literal["GENERAL", "STATE", "LOCAL"]

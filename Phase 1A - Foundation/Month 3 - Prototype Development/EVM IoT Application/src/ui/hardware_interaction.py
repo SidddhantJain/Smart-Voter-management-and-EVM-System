@@ -3,7 +3,16 @@ Hardware Interaction UI for VoteGuard Pro EVM
 Language: Python (PyQt5)
 Handles: Biometric devices, camera feeds, and hardware diagnostics
 """
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox
+
+from PyQt5.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class HardwareInteractionUI(QWidget):
     def __init__(self):
@@ -37,13 +46,18 @@ class HardwareInteractionUI(QWidget):
         self.setLayout(layout)
 
     def test_biometric_device(self):
-        QMessageBox.information(self, "Biometric Test", "Biometric device is functioning correctly.")
+        QMessageBox.information(
+            self, "Biometric Test", "Biometric device is functioning correctly."
+        )
 
     def test_camera(self):
         QMessageBox.information(self, "Camera Test", "Camera is functioning correctly.")
 
     def run_diagnostics(self):
-        QMessageBox.information(self, "Diagnostics", "All hardware diagnostics passed successfully.")
+        QMessageBox.information(
+            self, "Diagnostics", "All hardware diagnostics passed successfully."
+        )
+
 
 if __name__ == "__main__":
     app = QApplication([])

@@ -4,8 +4,8 @@ Language: Python (PyQt5/Kivy placeholder)
 Handles: Voter authentication, ballot selection, vote confirmation
 """
 
-
 from utils.logger import Logger
+
 
 class TouchscreenUI:
     def __init__(self, device_manager, blockchain_client):

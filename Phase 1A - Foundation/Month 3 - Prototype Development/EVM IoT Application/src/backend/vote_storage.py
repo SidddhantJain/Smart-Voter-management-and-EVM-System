@@ -3,10 +3,13 @@ Vote Storage Backend for VoteGuard Pro EVM
 Language: Python
 Handles: Secure storage of votes
 """
+
 import json
 import os
 from datetime import datetime
+
 from cryptography.fernet import Fernet
+
 
 class VoteStorage:
     def __init__(self, storage_file="votes.json", key_file="key.key"):
@@ -35,7 +38,7 @@ class VoteStorage:
         vote = {
             "election_type": election_type,
             "party_name": party_name,
-            "timestamp": timestamp
+            "timestamp": timestamp,
         }
         with open(self.storage_file, "rb+") as f:
             encrypted_data = f.read()
@@ -50,6 +53,7 @@ class VoteStorage:
         with open(self.storage_file, "wb") as f:
             f.write(self.cipher.encrypt(json.dumps([]).encode()))
         print("[BACKEND] Storage file reinitialized.")
+
 
 if __name__ == "__main__":
     backend = VoteStorage()

@@ -1,12 +1,27 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox, QFileDialog, QCheckBox, QSpinBox
-from PyQt5.QtCore import Qt, QTimer
-from pathlib import Path
-import pyqtgraph as pg
-from voteguard.core.counting import tally
-from voteguard.config.env import data_dir, key_path
-from scripts.verify_ledger import verify as verify_ledger
-import json
 import csv
+import json
+from pathlib import Path
+
+import pyqtgraph as pg
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from scripts.verify_ledger import verify as verify_ledger
+from voteguard.config.env import data_dir, key_path
+from voteguard.core.counting import tally
 
 
 class CountUI(QWidget):
@@ -60,7 +75,7 @@ class CountUI(QWidget):
         layout.addWidget(self.status_label)
         # Chart area
         self.plot = pg.PlotWidget()
-        self.plot.setBackground('w')
+        self.plot.setBackground("w")
         layout.addWidget(self.plot)
         self.setLayout(layout)
         self._counts = {}
@@ -81,7 +96,10 @@ class CountUI(QWidget):
         code = verify_ledger(ledger)
         integrity = "OK" if code == 0 else "FAIL"
         from datetime import datetime
-        self.status_label.setText(f"Last refresh: {datetime.now().strftime('%H:%M:%S')} | Integrity: {integrity} | Records: {sum(len(v) for v in counts.values())}")
+
+        self.status_label.setText(
+            f"Last refresh: {datetime.now().strftime('%H:%M:%S')} | Integrity: {integrity} | Records: {sum(len(v) for v in counts.values())}"
+        )
         self._counts = counts
         self.update_filter_options()
         self.apply_filter()
@@ -119,7 +137,11 @@ class CountUI(QWidget):
             self.table.setItem(r, 2, QTableWidgetItem(str(c)))
             # Percentage based on per-election total
             total_for_election = totals.get(election, 0)
-            pct = 100.0 if choice == "TOTAL" and total_for_election else (100.0 * (c / total_for_election) if total_for_election else 0.0)
+            pct = (
+                100.0
+                if choice == "TOTAL" and total_for_election
+                else (100.0 * (c / total_for_election) if total_for_election else 0.0)
+            )
             self.table.setItem(r, 3, QTableWidgetItem(f"{pct:.1f}%"))
         # Draw chart for selected
         self.draw_chart(selected, totals)
@@ -130,24 +152,30 @@ class CountUI(QWidget):
             labels = list(totals.keys())
             values = [totals[e] for e in labels]
             x = list(range(len(labels)))
-            bg = pg.BarGraphItem(x=x, height=values, width=0.6, brush=pg.mkBrush('#5c6bc0'))
+            bg = pg.BarGraphItem(
+                x=x, height=values, width=0.6, brush=pg.mkBrush("#5c6bc0")
+            )
             self.plot.addItem(bg)
             self.plot.getPlotItem().setTitle("Votes per Election")
-            self.plot.getPlotItem().getAxis('bottom').setTicks([list(zip(x, labels))])
+            self.plot.getPlotItem().getAxis("bottom").setTicks([list(zip(x, labels))])
         else:
             choices = self._counts.get(selected, {})
             labels = list(choices.keys())
             values = [choices[c] for c in labels]
             x = list(range(len(labels)))
-            bg = pg.BarGraphItem(x=x, height=values, width=0.6, brush=pg.mkBrush('#26a69a'))
+            bg = pg.BarGraphItem(
+                x=x, height=values, width=0.6, brush=pg.mkBrush("#26a69a")
+            )
             self.plot.addItem(bg)
             self.plot.getPlotItem().setTitle(f"{selected} — Votes per Choice")
-            self.plot.getPlotItem().getAxis('bottom').setTicks([list(zip(x, labels))])
-        self.plot.getPlotItem().getAxis('left').setLabel(text='Count')
+            self.plot.getPlotItem().getAxis("bottom").setTicks([list(zip(x, labels))])
+        self.plot.getPlotItem().getAxis("left").setLabel(text="Count")
 
     def export_json(self):
         suggested = str((data_dir() / "results.json").resolve())
-        path, _ = QFileDialog.getSaveFileName(self, "Save JSON", suggested, "JSON Files (*.json);;All Files (*.*)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save JSON", suggested, "JSON Files (*.json);;All Files (*.*)"
+        )
         if not path:
             return
         try:
@@ -158,7 +186,9 @@ class CountUI(QWidget):
 
     def export_csv(self):
         suggested = str((data_dir() / "results.csv").resolve())
-        path, _ = QFileDialog.getSaveFileName(self, "Save CSV", suggested, "CSV Files (*.csv);;All Files (*.*)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save CSV", suggested, "CSV Files (*.csv);;All Files (*.*)"
+        )
         if not path:
             return
         try:
@@ -166,7 +196,9 @@ class CountUI(QWidget):
                 w = csv.writer(f)
                 w.writerow(["Election", "Choice", "Count"])
                 for election, choices in self._counts.items():
-                    for choice, c in sorted(choices.items(), key=lambda kv: (-kv[1], kv[0])):
+                    for choice, c in sorted(
+                        choices.items(), key=lambda kv: (-kv[1], kv[0])
+                    ):
                         w.writerow([election, choice, c])
             QMessageBox.information(self, "Export", f"Saved CSV to {path}")
         except Exception as e:
@@ -174,9 +206,18 @@ class CountUI(QWidget):
 
     def export_json_filtered(self):
         selected = self.filter.currentText()
-        suggested_name = "results_filtered.json" if selected == "All Elections" else f"results_{selected}.json"
+        suggested_name = (
+            "results_filtered.json"
+            if selected == "All Elections"
+            else f"results_{selected}.json"
+        )
         suggested = str((data_dir() / suggested_name).resolve())
-        path, _ = QFileDialog.getSaveFileName(self, "Save Filtered JSON", suggested, "JSON Files (*.json);;All Files (*.*)")
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Filtered JSON",
+            suggested,
+            "JSON Files (*.json);;All Files (*.*)",
+        )
         if not path:
             return
         try:
@@ -188,9 +229,15 @@ class CountUI(QWidget):
 
     def export_csv_filtered(self):
         selected = self.filter.currentText()
-        suggested_name = "results_filtered.csv" if selected == "All Elections" else f"results_{selected}.csv"
+        suggested_name = (
+            "results_filtered.csv"
+            if selected == "All Elections"
+            else f"results_{selected}.csv"
+        )
         suggested = str((data_dir() / suggested_name).resolve())
-        path, _ = QFileDialog.getSaveFileName(self, "Save Filtered CSV", suggested, "CSV Files (*.csv);;All Files (*.*)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Filtered CSV", suggested, "CSV Files (*.csv);;All Files (*.*)"
+        )
         if not path:
             return
         try:
@@ -199,7 +246,9 @@ class CountUI(QWidget):
                 w = csv.writer(f)
                 w.writerow(["Election", "Choice", "Count"])
                 for election, choices in data.items():
-                    for choice, c in sorted(choices.items(), key=lambda kv: (-kv[1], kv[0])):
+                    for choice, c in sorted(
+                        choices.items(), key=lambda kv: (-kv[1], kv[0])
+                    ):
                         w.writerow([election, choice, c])
             QMessageBox.information(self, "Export", f"Saved CSV to {path}")
         except Exception as e:

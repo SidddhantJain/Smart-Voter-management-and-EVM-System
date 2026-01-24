@@ -1,16 +1,28 @@
 import argparse
 import json
 from pathlib import Path
+
 from voteguard.config.env import data_dir, key_path
 from voteguard.core.counting import tally
 
 
 def main():
     parser = argparse.ArgumentParser(description="Tally votes from ballot ledger")
-    parser.add_argument("--ledger", type=str, default=str(data_dir() / "ballot_ledger.json"), help="Path to ballot ledger JSON")
-    parser.add_argument("--key", type=str, default=str(key_path()), help="Path to Fernet key file")
-    parser.add_argument("--out", type=str, default="", help="Optional path to write tally JSON")
-    parser.add_argument("--no-verify", action="store_true", help="Skip ledger integrity verification")
+    parser.add_argument(
+        "--ledger",
+        type=str,
+        default=str(data_dir() / "ballot_ledger.json"),
+        help="Path to ballot ledger JSON",
+    )
+    parser.add_argument(
+        "--key", type=str, default=str(key_path()), help="Path to Fernet key file"
+    )
+    parser.add_argument(
+        "--out", type=str, default="", help="Optional path to write tally JSON"
+    )
+    parser.add_argument(
+        "--no-verify", action="store_true", help="Skip ledger integrity verification"
+    )
     args = parser.parse_args()
 
     ledger_path = Path(args.ledger)

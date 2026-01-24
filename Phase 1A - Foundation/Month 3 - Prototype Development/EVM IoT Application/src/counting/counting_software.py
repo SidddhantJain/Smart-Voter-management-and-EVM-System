@@ -3,8 +3,20 @@ Counting Software for VoteGuard Pro EVM
 Language: Python (PyQt5)
 Handles: Verification of Aadhaar and Voter ID, constituency matching, and vote tallying
 """
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QMessageBox, QTableWidget, QTableWidgetItem
+
 import json
+
+from PyQt5.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class CountingSoftware(QWidget):
     def __init__(self):
@@ -50,7 +62,9 @@ class CountingSoftware(QWidget):
         # Table for displaying votes
         self.vote_table = QTableWidget()
         self.vote_table.setColumnCount(3)
-        self.vote_table.setHorizontalHeaderLabels(["Aadhaar ID", "Voter ID", "Candidate"])
+        self.vote_table.setHorizontalHeaderLabels(
+            ["Aadhaar ID", "Voter ID", "Candidate"]
+        )
         layout.addWidget(self.vote_table)
 
         # Load Votes Button
@@ -74,9 +88,15 @@ class CountingSoftware(QWidget):
                 votes = json.loads(content)
                 self.vote_table.setRowCount(len(votes))
                 for row, vote in enumerate(votes):
-                    self.vote_table.setItem(row, 0, QTableWidgetItem(vote.get("aadhaar_id", "N/A")))
-                    self.vote_table.setItem(row, 1, QTableWidgetItem(vote.get("voter_id", "N/A")))
-                    self.vote_table.setItem(row, 2, QTableWidgetItem(vote.get("candidate", "N/A")))
+                    self.vote_table.setItem(
+                        row, 0, QTableWidgetItem(vote.get("aadhaar_id", "N/A"))
+                    )
+                    self.vote_table.setItem(
+                        row, 1, QTableWidgetItem(vote.get("voter_id", "N/A"))
+                    )
+                    self.vote_table.setItem(
+                        row, 2, QTableWidgetItem(vote.get("candidate", "N/A"))
+                    )
             QMessageBox.information(self, "Load Votes", "Votes loaded successfully.")
         except ValueError as ve:
             QMessageBox.warning(self, "Load Votes", f"Warning: {ve}")
@@ -85,7 +105,10 @@ class CountingSoftware(QWidget):
 
     def verify_votes(self):
         # Simulate verification logic
-        QMessageBox.information(self, "Verify Votes", "All votes verified successfully.")
+        QMessageBox.information(
+            self, "Verify Votes", "All votes verified successfully."
+        )
+
 
 if __name__ == "__main__":
     app = QApplication([])

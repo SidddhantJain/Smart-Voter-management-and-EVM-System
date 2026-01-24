@@ -1,7 +1,7 @@
+import hashlib
 import json
 import sys
 from pathlib import Path
-import hashlib
 
 
 def verify(path: Path) -> int:
@@ -20,9 +20,13 @@ def verify(path: Path) -> int:
     for rec in records:
         seq = rec.get("seq")
         if seq != expected_seq:
-            errors.append(f"Missing or out-of-order seq: expected {expected_seq}, found {seq}")
+            errors.append(
+                f"Missing or out-of-order seq: expected {expected_seq}, found {seq}"
+            )
         payload = rec.get("ciphertext") or rec.get("payload")
-        calc = hashlib.sha256((prev_hash + ":" + payload + ":" + str(seq)).encode("utf-8")).hexdigest()
+        calc = hashlib.sha256(
+            (prev_hash + ":" + payload + ":" + str(seq)).encode("utf-8")
+        ).hexdigest()
         if calc != rec.get("record_hash"):
             errors.append(f"Hash mismatch at seq {seq}")
         prev_hash = rec.get("record_hash")

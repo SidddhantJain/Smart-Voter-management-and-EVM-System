@@ -1,12 +1,17 @@
-import os
 import argparse
+import os
+
 from voteguard.app import bootstrap
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n", type=int, default=3, help="Number of votes to simulate")
-    parser.add_argument("--reset", action="store_true", help="Reset ledgers and cast registry before simulating")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Reset ledgers and cast registry before simulating",
+    )
     args = parser.parse_args()
 
     os.environ.setdefault("VOTEGUARD_DATA", "./data")
@@ -15,7 +20,12 @@ def main():
     os.makedirs(data_dir, exist_ok=True)
 
     if args.reset:
-        for name in ("ballot_ledger.json", "audit_ledger.json", "cast_registry.json", os.path.basename(os.getenv("FERNET_KEY_PATH", "key.key"))):
+        for name in (
+            "ballot_ledger.json",
+            "audit_ledger.json",
+            "cast_registry.json",
+            os.path.basename(os.getenv("FERNET_KEY_PATH", "key.key")),
+        ):
             path = os.path.join(data_dir, name)
             try:
                 if os.path.exists(path):

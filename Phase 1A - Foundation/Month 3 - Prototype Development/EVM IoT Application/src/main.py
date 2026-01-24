@@ -4,10 +4,10 @@ Language: Python 3.11+
 Purpose: Orchestrates UI, hardware, blockchain, and security modules for the EVM device
 """
 
-from ui.touchscreen import TouchscreenUI
-from hardware.device_manager import DeviceManager
 from blockchain.client import BlockchainClient
+from hardware.device_manager import DeviceManager
 from security.secure_boot import SecureBoot
+from ui.touchscreen import TouchscreenUI
 from utils.logger import Logger
 
 
@@ -29,6 +29,7 @@ def main():
 
     # Main event loop (UI handles voting workflow)
     # All logs and audit events are handled by Logger
+
 
 if __name__ == "__main__":
     main()

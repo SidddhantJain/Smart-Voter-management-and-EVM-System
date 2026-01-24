@@ -1,5 +1,6 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
 from pathlib import Path
+
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class VoteAnimationWidget(QtWidgets.QWidget):
@@ -41,39 +42,61 @@ class VoteAnimationWidget(QtWidgets.QWidget):
 
         # Ballot box rectangle
         box_rect = QtCore.QRectF(380, 430, 120, 100)
-        self.ballot_box = self.scene.addRect(box_rect, QtGui.QPen(QtGui.QColor("#333")), QtGui.QBrush(QtGui.QColor("#c8e6c9")))
+        self.ballot_box = self.scene.addRect(
+            box_rect,
+            QtGui.QPen(QtGui.QColor("#333")),
+            QtGui.QBrush(QtGui.QColor("#c8e6c9")),
+        )
         box_text = self.scene.addText("Ballot Box")
         box_text.setDefaultTextColor(QtGui.QColor("#333"))
         box_text.setPos(box_rect.center().x() - 40, box_rect.top() - 22)
 
         # Blockchain indicator (initially hidden)
         chain_block_rect = QtCore.QRectF(720, 240, 130, 80)
-        self.blockchain_block = self.scene.addRect(chain_block_rect, QtGui.QPen(QtGui.QColor("#333")), QtGui.QBrush(QtGui.QColor("#bbdefb")))
+        self.blockchain_block = self.scene.addRect(
+            chain_block_rect,
+            QtGui.QPen(QtGui.QColor("#333")),
+            QtGui.QBrush(QtGui.QColor("#bbdefb")),
+        )
         self.blockchain_label = self.scene.addText("Blockchain Block")
         self.blockchain_label.setDefaultTextColor(QtGui.QColor("#1a237e"))
-        self.blockchain_label.setPos(chain_block_rect.left() + 6, chain_block_rect.top() + 6)
+        self.blockchain_label.setPos(
+            chain_block_rect.left() + 6, chain_block_rect.top() + 6
+        )
         self.blockchain_block.setOpacity(0.0)
         self.blockchain_label.setOpacity(0.0)
 
-    def _make_candidate_card(self, name: str, image_path: Path | None) -> QtWidgets.QGraphicsItemGroup:
+    def _make_candidate_card(
+        self, name: str, image_path: Path | None
+    ) -> QtWidgets.QGraphicsItemGroup:
         group = QtWidgets.QGraphicsItemGroup()
 
         # Card background
         card_rect = QtCore.QRectF(0, 0, 200, 120)
-        card = self.scene.addRect(card_rect, QtGui.QPen(QtGui.QColor("#444")), QtGui.QBrush(QtGui.QColor("#fffde7")))
+        card = self.scene.addRect(
+            card_rect,
+            QtGui.QPen(QtGui.QColor("#444")),
+            QtGui.QBrush(QtGui.QColor("#fffde7")),
+        )
         group.addToGroup(card)
 
         # Candidate image (optional)
         if image_path and Path(image_path).exists():
             pix = QtGui.QPixmap(str(image_path))
             if not pix.isNull():
-                pix = pix.scaled(80, 80, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                pix = pix.scaled(
+                    80, 80, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+                )
                 img_item = self.scene.addPixmap(pix)
                 img_item.setPos(10, 10)
                 group.addToGroup(img_item)
         else:
             # Placeholder avatar
-            avatar = self.scene.addEllipse(QtCore.QRectF(10, 10, 80, 80), QtGui.QPen(QtGui.QColor("#666")), QtGui.QBrush(QtGui.QColor("#eeeeee")))
+            avatar = self.scene.addEllipse(
+                QtCore.QRectF(10, 10, 80, 80),
+                QtGui.QPen(QtGui.QColor("#666")),
+                QtGui.QBrush(QtGui.QColor("#eeeeee")),
+            )
             group.addToGroup(avatar)
 
         # Candidate name
@@ -100,13 +123,24 @@ class VoteAnimationWidget(QtWidgets.QWidget):
     def _add_to_paper_chain(self, name: str) -> None:
         x = 20 + (self.chain_count % 5) * 110
         y = 60 + (self.chain_count // 5) * 70
-        rect = self.scene.addRect(QtCore.QRectF(x, y, 100, 50), QtGui.QPen(QtGui.QColor("#888")), QtGui.QBrush(QtGui.QColor("#f1f8e9")))
+        rect = self.scene.addRect(
+            QtCore.QRectF(x, y, 100, 50),
+            QtGui.QPen(QtGui.QColor("#888")),
+            QtGui.QBrush(QtGui.QColor("#f1f8e9")),
+        )
         label = self.scene.addText(name or "Candidate")
         label.setDefaultTextColor(QtGui.QColor("#2e7d32"))
         label.setPos(x + 6, y + 6)
         self.chain_count += 1
 
-    def _animate_move(self, item: QtWidgets.QGraphicsItem, start: QtCore.QPointF, end: QtCore.QPointF, duration_ms: int = 1200, on_done=None) -> None:
+    def _animate_move(
+        self,
+        item: QtWidgets.QGraphicsItem,
+        start: QtCore.QPointF,
+        end: QtCore.QPointF,
+        duration_ms: int = 1200,
+        on_done=None,
+    ) -> None:
         # Basic linear animation using QVariantAnimation to drive position updates
         item.setPos(start)
         anim = QtCore.QVariantAnimation(self)
@@ -127,7 +161,14 @@ class VoteAnimationWidget(QtWidgets.QWidget):
         anim.finished.connect(_finish)
         anim.start()
 
-    def _animate_opacity(self, item: QtWidgets.QGraphicsItem, start: float, end: float, duration_ms: int = 800, on_done=None) -> None:
+    def _animate_opacity(
+        self,
+        item: QtWidgets.QGraphicsItem,
+        start: float,
+        end: float,
+        duration_ms: int = 800,
+        on_done=None,
+    ) -> None:
         anim = QtCore.QVariantAnimation(self)
         anim.setStartValue(start)
         anim.setEndValue(end)
@@ -144,7 +185,9 @@ class VoteAnimationWidget(QtWidgets.QWidget):
         anim.finished.connect(_finish)
         anim.start()
 
-    def animate_vote(self, candidate_name: str, image_path: str | Path | None = None) -> None:
+    def animate_vote(
+        self, candidate_name: str, image_path: str | Path | None = None
+    ) -> None:
         """
         Public API to run the full sequence for a single vote.
         """
@@ -152,7 +195,9 @@ class VoteAnimationWidget(QtWidgets.QWidget):
         self._add_to_paper_chain(candidate_name)
 
         # 2) Build candidate card at top-center
-        card = self._make_candidate_card(candidate_name, Path(image_path) if image_path else None)
+        card = self._make_candidate_card(
+            candidate_name, Path(image_path) if image_path else None
+        )
 
         # 3) Animate to ballot box
         start = card.pos()

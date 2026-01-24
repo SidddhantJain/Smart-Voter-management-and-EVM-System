@@ -1,5 +1,7 @@
-from voteguard.core.state_machine import State, can_transition, assert_transition
 import pytest
+
+from voteguard.core.state_machine import State, assert_transition, can_transition
+
 
 def test_valid_transitions():
     assert can_transition(State.AADHAAR_ENTRY, State.BIOMETRIC_CAPTURE)

@@ -3,8 +3,10 @@ Pattern Recognition for Voting Data
 Language: Python
 Handles: Detecting irregular patterns in voting data
 """
+
 import numpy as np
 import pandas as pd
+
 
 class PatternRecognition:
     def __init__(self):
@@ -25,9 +27,12 @@ class PatternRecognition:
 
         # Example: Check for votes cast outside registered constituency
         if (data["casted_constituency"] != data["registered_constituency"]).any():
-            irregularities.append("Votes cast outside registered constituency detected.")
+            irregularities.append(
+                "Votes cast outside registered constituency detected."
+            )
 
         return irregularities
+
 
 if __name__ == "__main__":
     pr = PatternRecognition()

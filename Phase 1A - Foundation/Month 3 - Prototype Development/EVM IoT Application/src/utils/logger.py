@@ -10,6 +10,7 @@ from typing import Optional
 try:
     # Load environment variables from a local .env if present
     from dotenv import load_dotenv  # type: ignore
+
     load_dotenv()
 except Exception:
     pass

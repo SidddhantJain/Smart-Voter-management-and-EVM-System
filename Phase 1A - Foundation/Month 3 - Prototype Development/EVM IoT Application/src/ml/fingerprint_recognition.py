@@ -3,8 +3,10 @@ Fingerprint Recognition Module
 Language: Python
 Handles: Fingerprint matching and verification
 """
-import numpy as np
+
 import cv2
+import numpy as np
+
 
 class FingerprintRecognition:
     def __init__(self):
@@ -48,6 +50,7 @@ class FingerprintRecognition:
         else:
             print("[ML] Fingerprint match failed.")
             return False
+
 
 if __name__ == "__main__":
     fr = FingerprintRecognition()

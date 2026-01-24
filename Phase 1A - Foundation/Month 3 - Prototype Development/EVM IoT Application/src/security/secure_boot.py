@@ -4,6 +4,7 @@ Language: Python (placeholder)
 Handles: Device integrity verification at startup
 """
 
+
 class SecureBoot:
     @staticmethod
     def verify_integrity():

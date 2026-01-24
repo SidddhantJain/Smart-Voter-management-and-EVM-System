@@ -3,10 +3,11 @@ Emotion recognition using optional ONNXRuntime with FER+ model.
 If `models/ferplus.onnx` is present, runs inference; otherwise uses a simple
 heuristic fallback (neutral/happiness). Auto-downloads FER+ ONNX if missing.
 """
+
 import os
+from collections import Counter, deque
 from pathlib import Path
 from typing import Optional, Tuple
-from collections import deque, Counter
 
 import numpy as np
 
@@ -82,19 +83,27 @@ class EmotionRecognizer:
                     try:
                         # DeepFace expects BGR by default; convert RGB->BGR
                         import cv2
+
                         face_bgr = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2BGR)
-                        res = DeepFace.analyze(face_bgr, actions=['emotion'], enforce_detection=False)  # type: ignore
+                        res = DeepFace.analyze(face_bgr, actions=["emotion"], enforce_detection=False)  # type: ignore
                         if isinstance(res, list) and res:
                             res = res[0]
-                        label = str(res.get('dominant_emotion', 'Neutral')).capitalize()
-                        return self._smooth(label, float(res.get('emotion', {}).get(label.lower(), 0.6)))
+                        label = str(res.get("dominant_emotion", "Neutral")).capitalize()
+                        return self._smooth(
+                            label, float(res.get("emotion", {}).get(label.lower(), 0.6))
+                        )
                     except Exception:
                         pass
                 # Otherwise, simple smile/neutral heuristic
                 import cv2
+
                 gray = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2GRAY)
-                smile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_smile.xml')
-                smiles = smile_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=40)
+                smile_cascade = cv2.CascadeClassifier(
+                    cv2.data.haarcascades + "haarcascade_smile.xml"
+                )
+                smiles = smile_cascade.detectMultiScale(
+                    gray, scaleFactor=1.3, minNeighbors=40
+                )
                 if len(smiles) > 0:
                     return self._smooth("Happiness", 0.60)
                 return self._smooth("Neutral", 0.55)
@@ -147,12 +156,14 @@ class EmotionRecognizer:
             for url in urls:
                 try:
                     import requests  # type: ignore
+
                     resp = requests.get(url, timeout=30)
                     if resp.status_code == 200 and resp.content:
                         model_path.write_bytes(resp.content)
                         break
                 except Exception:
                     import urllib.request
+
                     with urllib.request.urlopen(url, timeout=30) as r:  # type: ignore
                         data = r.read()
                         if data:

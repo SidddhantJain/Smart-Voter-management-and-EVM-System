@@ -1,8 +1,10 @@
 from __future__ import annotations
-import json
+
 import hashlib
+import json
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
+
 from cryptography.fernet import Fernet
 
 
@@ -17,9 +19,13 @@ def _verify_integrity(records: list) -> Tuple[bool, list]:
     for rec in records:
         seq = rec.get("seq")
         if seq != expected_seq:
-            errors.append(f"Missing or out-of-order seq: expected {expected_seq}, found {seq}")
+            errors.append(
+                f"Missing or out-of-order seq: expected {expected_seq}, found {seq}"
+            )
         payload = rec.get("ciphertext") or rec.get("payload")
-        calc = hashlib.sha256((prev_hash + ":" + payload + ":" + str(seq)).encode("utf-8")).hexdigest()
+        calc = hashlib.sha256(
+            (prev_hash + ":" + payload + ":" + str(seq)).encode("utf-8")
+        ).hexdigest()
         if calc != rec.get("record_hash"):
             errors.append(f"Hash mismatch at seq {seq}")
         prev_hash = rec.get("record_hash")
@@ -27,7 +33,9 @@ def _verify_integrity(records: list) -> Tuple[bool, list]:
     return (len(errors) == 0), errors
 
 
-def tally(ledger_path: Path, key_path: Path, verify: bool = True) -> Dict[str, Dict[str, int]]:
+def tally(
+    ledger_path: Path, key_path: Path, verify: bool = True
+) -> Dict[str, Dict[str, int]]:
     """
     Tally votes from the encrypted hash-chained ledger.
 
@@ -41,7 +49,9 @@ def tally(ledger_path: Path, key_path: Path, verify: bool = True) -> Dict[str, D
     if verify:
         ok, errors = _verify_integrity(records)
         if not ok:
-            raise ValueError("Ledger integrity verification failed: " + "; ".join(errors))
+            raise ValueError(
+                "Ledger integrity verification failed: " + "; ".join(errors)
+            )
 
     key = key_path.read_bytes()
     f = Fernet(key)

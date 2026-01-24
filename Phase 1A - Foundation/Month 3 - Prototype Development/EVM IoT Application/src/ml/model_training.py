@@ -3,10 +3,12 @@ Machine Learning Model Training for Fraud Detection
 Language: Python
 Handles: Data preprocessing, model training, and evaluation
 """
+
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+
 
 class FraudDetectionModel:
     def __init__(self):
@@ -41,6 +43,7 @@ class FraudDetectionModel:
         predictions = self.model.predict(X_test)
         report = classification_report(y_test, predictions)
         print("[ML] Model Evaluation Report:\n", report)
+
 
 if __name__ == "__main__":
     model = FraudDetectionModel()

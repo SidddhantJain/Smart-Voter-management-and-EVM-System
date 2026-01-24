@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import List, Dict, Any
+
+from typing import Any, Dict, List
 
 # Optional deps
 try:
@@ -16,11 +17,13 @@ EmotionRecognizer = None
 DemographicsRecognizer = None
 try:
     from ml.emotion_recognizer import EmotionRecognizer as _ER  # type: ignore
+
     EmotionRecognizer = _ER
 except Exception:
     pass
 try:
     from ml.demographics_recognizer import DemographicsRecognizer as _DR  # type: ignore
+
     DemographicsRecognizer = _DR
 except Exception:
     pass
@@ -49,8 +52,12 @@ def _detect_faces(frame) -> List[Any]:
         return []
     try:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+        cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        )
+        faces = cascade.detectMultiScale(
+            gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
+        )
         return faces
     except Exception:
         return []
@@ -69,8 +76,8 @@ def analyze(frame) -> List[Dict[str, Any]]:
             return results
         er = EmotionRecognizer() if EmotionRecognizer is not None else None
         dr = DemographicsRecognizer() if DemographicsRecognizer is not None else None
-        for (x, y, w, h) in faces:
-            roi = frame[y:y+h, x:x+w]
+        for x, y, w, h in faces:
+            roi = frame[y : y + h, x : x + w]
             emotion_label = "Unknown"
             age_bucket, gender_label = "Unknown", "Unknown"
             try:
@@ -81,15 +88,19 @@ def analyze(frame) -> List[Dict[str, Any]]:
                 emotion_label = "Unknown"
             try:
                 if dr is not None:
-                    age_bucket, age_conf, gender_label, gender_conf = dr.predict(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
+                    age_bucket, age_conf, gender_label, gender_conf = dr.predict(
+                        cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+                    )
             except Exception:
                 age_bucket, gender_label = "Unknown", "Unknown"
-            results.append({
-                "bbox": (int(x), int(y), int(w), int(h)),
-                "emotion": emotion_label,
-                "age": age_bucket,
-                "gender": gender_label,
-            })
+            results.append(
+                {
+                    "bbox": (int(x), int(y), int(w), int(h)),
+                    "emotion": emotion_label,
+                    "age": age_bucket,
+                    "gender": gender_label,
+                }
+            )
         return results
     except Exception:
         return []

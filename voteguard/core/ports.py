@@ -1,6 +1,8 @@
 from __future__ import annotations
-from typing import Protocol, Tuple, Optional, Dict, Any
-from .domain import Vote, Receipt, AuditEvent
+
+from typing import Any, Dict, Optional, Protocol, Tuple
+
+from .domain import AuditEvent, Receipt, Vote
 
 
 class VoteStore(Protocol):
@@ -10,16 +12,13 @@ class VoteStore(Protocol):
 
 
 class AuditStore(Protocol):
-    def append_event(self, event: AuditEvent) -> Tuple[int, str]:
-        ...
+    def append_event(self, event: AuditEvent) -> Tuple[int, str]: ...
 
 
 class CastRegistry(Protocol):
-    def has_cast(self, voter_hash: str) -> bool:
-        ...
+    def has_cast(self, voter_hash: str) -> bool: ...
 
-    def mark_cast(self, voter_hash: str) -> None:
-        ...
+    def mark_cast(self, voter_hash: str) -> None: ...
 
 
 class ChainAnchor(Protocol):
@@ -29,5 +28,4 @@ class ChainAnchor(Protocol):
 
 
 class BiometricPort(Protocol):
-    def device_health(self) -> Dict[str, Any]:
-        ...
+    def device_health(self) -> Dict[str, Any]: ...

@@ -6,8 +6,9 @@ Looks for:
 - OR single ONNX: models/age_gender.onnx (expects outputs [age_logits, gender_logits])
 Falls back to Unknown when models are not present.
 """
+
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -18,7 +19,16 @@ except Exception:
 
 
 class DemographicsRecognizer:
-    AGE_BUCKETS = ["(0-2)", "(4-6)", "(8-12)", "(15-20)", "(25-32)", "(38-43)", "(48-53)", "(60-100)"]
+    AGE_BUCKETS = [
+        "(0-2)",
+        "(4-6)",
+        "(8-12)",
+        "(15-20)",
+        "(25-32)",
+        "(38-43)",
+        "(48-53)",
+        "(60-100)",
+    ]
 
     def __init__(self):
         repo_root = Path(__file__).resolve().parents[4]
@@ -36,10 +46,15 @@ class DemographicsRecognizer:
 
         try:
             import cv2
+
             if self.age_proto.exists() and self.age_model.exists():
-                self.age_net = cv2.dnn.readNetFromCaffe(str(self.age_proto), str(self.age_model))
+                self.age_net = cv2.dnn.readNetFromCaffe(
+                    str(self.age_proto), str(self.age_model)
+                )
             if self.gender_proto.exists() and self.gender_model.exists():
-                self.gender_net = cv2.dnn.readNetFromCaffe(str(self.gender_proto), str(self.gender_model))
+                self.gender_net = cv2.dnn.readNetFromCaffe(
+                    str(self.gender_proto), str(self.gender_model)
+                )
         except Exception:
             self.age_net = None
             self.gender_net = None
@@ -55,22 +70,40 @@ class DemographicsRecognizer:
             self._ensure_models_downloaded()
             try:
                 import cv2
+
                 if self.age_proto.exists() and self.age_model.exists():
-                    self.age_net = cv2.dnn.readNetFromCaffe(str(self.age_proto), str(self.age_model))
+                    self.age_net = cv2.dnn.readNetFromCaffe(
+                        str(self.age_proto), str(self.age_model)
+                    )
                 if self.gender_proto.exists() and self.gender_model.exists():
-                    self.gender_net = cv2.dnn.readNetFromCaffe(str(self.gender_proto), str(self.gender_model))
+                    self.gender_net = cv2.dnn.readNetFromCaffe(
+                        str(self.gender_proto), str(self.gender_model)
+                    )
             except Exception:
                 self.age_net = None
                 self.gender_net = None
 
     def available(self) -> bool:
-        return any([self.age_net is not None, self.gender_net is not None, self.ort_sess is not None])
+        return any(
+            [
+                self.age_net is not None,
+                self.gender_net is not None,
+                self.ort_sess is not None,
+            ]
+        )
 
     def predict(self, face_rgb: np.ndarray) -> Tuple[str, float, str, float]:
         """Returns (age_bucket, age_conf, gender_label, gender_conf)."""
         try:
             import cv2
-            blob = cv2.dnn.blobFromImage(face_rgb, 1.0, (227, 227), (78.4263377603, 87.7689143744, 114.895847746), swapRB=False)
+
+            blob = cv2.dnn.blobFromImage(
+                face_rgb,
+                1.0,
+                (227, 227),
+                (78.4263377603, 87.7689143744, 114.895847746),
+                swapRB=False,
+            )
         except Exception:
             return ("Unknown", 0.0, "Unknown", 0.0)
 
@@ -82,7 +115,12 @@ class DemographicsRecognizer:
                 gender_probs = self._softmax(gender_out.squeeze())
                 age_idx = int(np.argmax(age_probs))
                 gender_idx = int(np.argmax(gender_probs))
-                return (self.AGE_BUCKETS[age_idx], float(age_probs[age_idx]), ["Male", "Female"][gender_idx], float(gender_probs[gender_idx]))
+                return (
+                    self.AGE_BUCKETS[age_idx],
+                    float(age_probs[age_idx]),
+                    ["Male", "Female"][gender_idx],
+                    float(gender_probs[gender_idx]),
+                )
             except Exception:
                 pass
 
@@ -93,6 +131,7 @@ class DemographicsRecognizer:
         gender_conf = 0.0
         try:
             import cv2
+
             if self.age_net is not None:
                 self.age_net.setInput(blob)
                 age_preds = self.age_net.forward().squeeze()
@@ -124,6 +163,7 @@ class DemographicsRecognizer:
         }
         try:
             import requests  # type: ignore
+
             self.models_dir.mkdir(parents=True, exist_ok=True)
             for path, url in urls.items():
                 if not path.exists():
@@ -134,6 +174,7 @@ class DemographicsRecognizer:
             # Fallback to urllib if requests isn't available
             try:
                 import urllib.request
+
                 self.models_dir.mkdir(parents=True, exist_ok=True)
                 for path, url in urls.items():
                     if not path.exists():

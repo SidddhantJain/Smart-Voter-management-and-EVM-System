@@ -3,10 +3,12 @@ ArcFace Implementation for Face Recognition
 Language: Python
 Handles: Highly accurate face recognition using ArcFace
 """
-import numpy as np
+
 import cv2
-from sklearn.preprocessing import normalize
+import numpy as np
 import tensorflow as tf
+from sklearn.preprocessing import normalize
+
 
 class ArcFaceRecognition:
     def __init__(self, model_path):
@@ -49,6 +51,7 @@ class ArcFaceRecognition:
         """
         distance = np.linalg.norm(embedding1 - embedding2)
         return distance < threshold
+
 
 if __name__ == "__main__":
     arcface = ArcFaceRecognition("arcface_model.h5")

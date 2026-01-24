@@ -3,7 +3,9 @@ Anomaly Detection Calibration
 Language: Python
 Handles: Fine-tuning thresholds for anomaly detection
 """
+
 import numpy as np
+
 
 class AnomalyDetection:
     def __init__(self):
@@ -26,6 +28,7 @@ class AnomalyDetection:
         anomalies = [score for score in data if score > self.threshold]
         print(f"[Anomaly Detection] Detected anomalies: {anomalies}")
         return anomalies
+
 
 if __name__ == "__main__":
     ad = AnomalyDetection()

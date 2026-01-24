@@ -69,3 +69,5 @@ Notes:
 - The counting UI reads from `data/ballot_ledger.json` and decrypts using `key.key`.
 - No Aadhaar/Voter ID is written to the ballot or audit ledgers; only salted hashes are in the cast registry.
 - Missing ML models, hardware, or blockchain binaries do not prevent simulation.
+ 
+    

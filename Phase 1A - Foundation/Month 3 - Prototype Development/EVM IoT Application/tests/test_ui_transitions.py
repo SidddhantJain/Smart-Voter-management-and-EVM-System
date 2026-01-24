@@ -3,7 +3,7 @@ import sys
 import unittest
 
 # Ensure src is importable
-SRC_PATH = os.path.join(os.path.dirname(__file__), '..', 'src')
+SRC_PATH = os.path.join(os.path.dirname(__file__), "..", "src")
 sys.path.insert(0, os.path.abspath(SRC_PATH))
 
 from PyQt5.QtWidgets import QApplication
@@ -29,5 +29,5 @@ class TestUITransitions(unittest.TestCase):
         self.assertEqual(ui.currentIndex(), 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

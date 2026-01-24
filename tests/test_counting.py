@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from voteguard.app import bootstrap
 from voteguard.config.env import data_dir
 from voteguard.core.counting import tally

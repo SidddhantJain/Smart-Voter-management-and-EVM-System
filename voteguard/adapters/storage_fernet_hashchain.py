@@ -1,12 +1,15 @@
 from __future__ import annotations
+
+import hashlib
 import json
 import os
 import time
-import hashlib
 from dataclasses import asdict
 from pathlib import Path
 from typing import Tuple
+
 from cryptography.fernet import Fernet
+
 from ..core.domain import Vote
 
 
@@ -46,15 +49,22 @@ class HashChainedLedger:
         records = data.get("records", [])
         seq = len(records) + 1
         prev_hash = records[-1]["record_hash"] if records else "0" * 64
-        plaintext = json.dumps({"vote": vote.to_public_json(), "meta": {"ts": time.time()}}, separators=(",", ":")).encode("utf-8")
+        plaintext = json.dumps(
+            {"vote": vote.to_public_json(), "meta": {"ts": time.time()}},
+            separators=(",", ":"),
+        ).encode("utf-8")
         ciphertext = self._fernet.encrypt(plaintext).decode("utf-8")
-        record_hash = hashlib.sha256((prev_hash + ":" + ciphertext + ":" + str(seq)).encode("utf-8")).hexdigest()
-        records.append({
-            "seq": seq,
-            "prev_hash": prev_hash,
-            "ciphertext": ciphertext,
-            "record_hash": record_hash,
-        })
+        record_hash = hashlib.sha256(
+            (prev_hash + ":" + ciphertext + ":" + str(seq)).encode("utf-8")
+        ).hexdigest()
+        records.append(
+            {
+                "seq": seq,
+                "prev_hash": prev_hash,
+                "ciphertext": ciphertext,
+                "record_hash": record_hash,
+            }
+        )
         data["records"] = records
         self._write_json(data)
         return seq, record_hash
