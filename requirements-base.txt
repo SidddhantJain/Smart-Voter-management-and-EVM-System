@@ -1,6 +1,7 @@
 cryptography==41.0.3
 # UI is optional; base aims to work headless and in simulation.
 pyqt5==5.15.10
+pyqtgraph==0.13.3
 # Dev/test tooling (Windows-safe; no compilation required)
 pytest==7.4.4
 

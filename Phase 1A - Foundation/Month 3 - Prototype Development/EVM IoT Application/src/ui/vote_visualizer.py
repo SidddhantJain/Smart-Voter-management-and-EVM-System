@@ -8,6 +8,11 @@ Shows: Candidate card added to paper chain, animated into ballot box,
 from pathlib import Path
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+try:
+    # Optional GPU acceleration for smoother animations
+    from PyQt5.QtWidgets import QOpenGLWidget  # type: ignore
+except Exception:
+    QOpenGLWidget = None
 
 
 class VoteVisualizerDialog(QtWidgets.QDialog):
@@ -29,6 +34,15 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
             | QtGui.QPainter.TextAntialiasing
             | QtGui.QPainter.SmoothPixmapTransform
         )
+        # Favor minimal repaints and smarter dirty-region updates
+        self.view.setViewportUpdateMode(QtWidgets.QGraphicsView.SmartViewportUpdate)
+        self.view.setCacheMode(QtWidgets.QGraphicsView.CacheBackground)
+        # Try enabling an OpenGL viewport to reduce tearing/flicker on Windows
+        try:
+            if QOpenGLWidget is not None:
+                self.view.setViewport(QOpenGLWidget())
+        except Exception:
+            pass
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.view)
 
@@ -39,6 +53,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         self.chain_count = 0
         self.status_overlay = None
         self.checkmark_item = None
+        # Keep strong references to running animations to avoid GC-induced jitter
+        self._animations: set[QtCore.QVariantAnimation] = set()
         self._draw_static_elements()
 
     def _draw_static_elements(self) -> None:
@@ -46,8 +62,9 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         chain_label.setDefaultTextColor(QtGui.QColor("#333"))
         chain_label.setPos(20, 20)
 
-        # Ballot box sized to fit the ballot card comfortably
-        box_rect = QtCore.QRectF(380, 430, 160, 120)
+        # Ballot box intentionally smaller than the ballot (envelope)
+        # to emphasize insertion into the slot.
+        box_rect = QtCore.QRectF(380, 440, 140, 110)
         self.ballot_box = self.scene.addRect(
             box_rect,
             QtGui.QPen(QtGui.QColor("#333")),
@@ -64,7 +81,17 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
             pass
         box_text = self.scene.addText("Ballot Box")
         box_text.setDefaultTextColor(QtGui.QColor("#333"))
-        box_text.setPos(box_rect.center().x() - 40, box_rect.top() - 22)
+        box_text.setPos(box_rect.center().x() - 40, box_rect.top() - 28)
+        # Add a slot at the top of the ballot box
+        slot_width = box_rect.width() * 0.7
+        slot_height = 6
+        slot_left = box_rect.center().x() - slot_width / 2
+        slot_top = box_rect.top() + 10
+        self.box_slot = self.scene.addRect(
+            QtCore.QRectF(slot_left, slot_top, slot_width, slot_height),
+            QtGui.QPen(QtGui.QColor("#263238")),
+            QtGui.QBrush(QtGui.QColor("#37474f")),
+        )
         # Blockchain block removed per request
 
         # Status overlay near the ballot box
@@ -90,8 +117,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         self, name: str, image_path: Path | None
     ) -> QtWidgets.QGraphicsItemGroup:
         group = QtWidgets.QGraphicsItemGroup()
-        # Envelope-style ballot: base rectangle with a flap triangle
-        base_rect = QtCore.QRectF(0, 0, 140, 90)
+        # Envelope-style ballot (letter): intentionally larger than the box
+        base_rect = QtCore.QRectF(0, 0, 220, 140)
         base_grad = QtGui.QLinearGradient(base_rect.topLeft(), base_rect.bottomLeft())
         base_grad.setColorAt(0.0, QtGui.QColor("#fffde7"))
         base_grad.setColorAt(1.0, QtGui.QColor("#f8f1d2"))
@@ -116,28 +143,29 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         )
         flap.setTransformOriginPoint(base_rect.width() / 2.0, 0)
         flap.setRotation(-18.0)
+        flap.setZValue(1)
         group.addToGroup(flap)
 
         # Decorative address lines
         line_pen = QtGui.QPen(QtGui.QColor("#9e9e9e"))
         line_pen.setWidth(1)
         for i in range(3):
-            y = 36 + i * 14
-            line_item = self.scene.addLine(60, y, base_rect.width() - 10, y, line_pen)
+            y = 54 + i * 18
+            line_item = self.scene.addLine(80, y, base_rect.width() - 14, y, line_pen)
             group.addToGroup(line_item)
 
         if image_path and Path(image_path).exists():
             pix = QtGui.QPixmap(str(image_path))
             if not pix.isNull():
                 pix = pix.scaled(
-                    42, 42, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+                    64, 64, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
                 )
                 img_item = self.scene.addPixmap(pix)
-                img_item.setPos(10, 10)
+                img_item.setPos(14, 18)
                 group.addToGroup(img_item)
         else:
             avatar = self.scene.addEllipse(
-                QtCore.QRectF(10, 10, 42, 42),
+                QtCore.QRectF(14, 18, 64, 64),
                 QtGui.QPen(QtGui.QColor("#666")),
                 QtGui.QBrush(QtGui.QColor("#eeeeee")),
             )
@@ -145,16 +173,16 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
 
         name_item = self.scene.addText(name or "Candidate")
         name_item.setDefaultTextColor(QtGui.QColor("#4e342e"))
-        name_item.setPos(60, 14)
+        name_item.setPos(90, 24)
         font = name_item.font()
-        font.setPointSize(10)
+        font.setPointSize(12)
         font.setBold(True)
         name_item.setFont(font)
         group.addToGroup(name_item)
 
         status_item = self.scene.addText("Vote Prepared")
         status_item.setDefaultTextColor(QtGui.QColor("#6d4c41"))
-        status_item.setPos(60, 50)
+        status_item.setPos(90, 64)
         group.addToGroup(status_item)
         # Subtle shadow on the whole envelope
         try:
@@ -166,7 +194,9 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         except Exception:
             pass
 
-        group.setPos(320, 60)
+        group.setPos(300, 60)
+        # Rotate the envelope around its top center for letter-like insertion
+        group.setTransformOriginPoint(base_rect.width() / 2.0, 0)
         group.setData(0, flap)
         self.scene.addItem(group)
         return group
@@ -198,6 +228,7 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         anim.setEndValue(1.0)
         anim.setDuration(duration_ms)
         easing = QtCore.QEasingCurve(QtCore.QEasingCurve.InOutCubic)
+        self._animations.add(anim)
 
         def _update(value: float):
             v = easing.valueForProgress(value)
@@ -206,6 +237,10 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
             item.setPos(x, y)
 
         def _finish():
+            try:
+                self._animations.discard(anim)
+            except Exception:
+                pass
             if callable(on_done):
                 on_done()
 
@@ -226,12 +261,17 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         anim.setEndValue(end)
         anim.setDuration(duration_ms)
         easing = QtCore.QEasingCurve(QtCore.QEasingCurve.InOutQuad)
+        self._animations.add(anim)
 
         def _update(value: float):
             p = easing.valueForProgress(value)
             item.setOpacity(start + (end - start) * p)
 
         def _finish():
+            try:
+                self._animations.discard(anim)
+            except Exception:
+                pass
             if callable(on_done):
                 on_done()
 
@@ -252,12 +292,17 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         anim.setEndValue(end)
         anim.setDuration(duration_ms)
         easing = QtCore.QEasingCurve(QtCore.QEasingCurve.OutBack)
+        self._animations.add(anim)
 
         def _update(value: float):
             p = easing.valueForProgress(value)
             item.setScale(start + (end - start) * p)
 
         def _finish():
+            try:
+                self._animations.discard(anim)
+            except Exception:
+                pass
             if callable(on_done):
                 on_done()
 
@@ -278,12 +323,17 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         anim.setEndValue(end_deg)
         anim.setDuration(duration_ms)
         easing = QtCore.QEasingCurve(QtCore.QEasingCurve.OutBack)
+        self._animations.add(anim)
 
         def _update(value: float):
             p = easing.valueForProgress(value)
             item.setRotation(start_deg + (end_deg - start_deg) * p)
 
         def _finish():
+            try:
+                self._animations.discard(anim)
+            except Exception:
+                pass
             if callable(on_done):
                 on_done()
 
@@ -303,44 +353,44 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         )
         start = card.pos()
         target_center = self.ballot_box.rect().center()
-        # Center the envelope within the ballot box
-        end = QtCore.QPointF(target_center.x() - 70, target_center.y() - 45)
+        # Target near the slot (top of ballot box)
+        slot_center = self.box_slot.rect().center()
+        approach = QtCore.QPointF(slot_center.x() - 110, self.box_slot.rect().top() - 40)
 
         def after_box():
-            # Gentle pulse on arrival
-            self._animate_scale(
-                card,
-                1.0,
-                1.08,
-                250,
-                on_done=lambda: self._animate_scale(card, 1.08, 1.0, 250),
-            )
-            # Close the flap, then show checkmark and update status
+            # Rotate the whole envelope like a letter entering the slot
+            self._animate_rotation(card, 0.0, -18.0, 400)
+            # Close the flap
             flap = card.data(0)
             if flap:
-                self._animate_rotation(flap, -18.0, 0.0, 500)
-            # Show checkmark and update status
+                self._animate_rotation(flap, -18.0, 0.0, 400)
+            # Insert downwards through the slot while fading out
+            insert_target = QtCore.QPointF(card.pos().x(), card.pos().y() + 70)
+            self._animate_move(
+                card,
+                card.pos(),
+                insert_target,
+                700,
+                on_done=lambda: self._animate_opacity(card, 1.0, 0.0, 900),
+            )
+            # Status and checkmark
             if self.checkmark_item:
-                self._animate_opacity(self.checkmark_item, 0.0, 1.0, 700)
+                self._animate_opacity(self.checkmark_item, 0.0, 1.0, 600)
             if self.status_overlay:
                 self.status_overlay.setPlainText("Vote recorded")
-            # Subtle glow using colorize effect
+            # Slight glow on box
             try:
                 glow = QtWidgets.QGraphicsColorizeEffect()
                 glow.setColor(QtGui.QColor("#66bb6a"))
-                glow.setStrength(0.3)
+                glow.setStrength(0.25)
                 self.ballot_box.setGraphicsEffect(glow)
-                QtCore.QTimer.singleShot(
-                    900, lambda: self.ballot_box.setGraphicsEffect(None)
-                )
+                QtCore.QTimer.singleShot(800, lambda: self.ballot_box.setGraphicsEffect(None))
             except Exception:
                 pass
-            # Fade out the ballot card and close
-            self._animate_opacity(card, 1.0, 0.0, 1200)
-            QtCore.QTimer.singleShot(1500, self.accept)
+            QtCore.QTimer.singleShot(1300, self.accept)
 
-        # Slow down the move animation for emphasis
-        self._animate_move(card, start, end, 2500, on_done=after_box)
+        # Approach the slot smoothly first, then insert
+        self._animate_move(card, start, approach, 1400, on_done=after_box)
 
 
 def visualize_vote(

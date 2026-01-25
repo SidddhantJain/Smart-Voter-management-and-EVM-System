@@ -38,6 +38,9 @@
                  border: 1px solid lightgray;
                  position: relative;
                  float: left;
+             /* Hint the browser to optimize transforms for smoother animation */
+             will-change: transform;
+             transform: translateZ(0);
              }
 
              
@@ -101,14 +104,35 @@
                   // adding nodes and edges to the graph
                   data = {nodes: nodes, edges: edges};
 
-                  var options = {"nodes": {"shape": "box", "shadow": true, "font": {"size": 18}}, "edges": {"arrows": {"to": {"enabled": true}}, "smooth": {"type": "dynamic"}}, "physics": {"enabled": true, "solver": "forceAtlas2Based", "stabilization": {"iterations": 50}}};
+                    var options = {
+                      nodes: { shape: "box", shadow: true, font: { size: 18 } },
+                      edges: {
+                        arrows: { to: { enabled: true } },
+                        // dynamic edges can jitter during physics; use continuous for stability
+                        smooth: { type: "continuous" }
+                      },
+                      layout: { improvedLayout: true, randomSeed: 42 },
+                      physics: {
+                        enabled: true,
+                        solver: "forceAtlas2Based",
+                        stabilization: { iterations: 200, fit: true },
+                        timestep: 0.5,
+                        minVelocity: 0.75
+                      },
+                      interaction: { hover: true }
+                    };
 
                   
 
 
                   
 
-                  network = new vis.Network(container, data, options);
+                    network = new vis.Network(container, data, options);
+
+                    // Disable physics after initial stabilization to prevent ongoing jitter
+                    network.once("stabilizationIterationsDone", function () {
+                      network.setOptions({ physics: { enabled: false } });
+                    });
 
                   
 

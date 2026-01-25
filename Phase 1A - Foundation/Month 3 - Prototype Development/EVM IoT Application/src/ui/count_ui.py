@@ -74,13 +74,19 @@ class CountUI(QWidget):
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
         # Chart area
+        # Enable antialiasing to reduce visual jitter on Windows
+        pg.setConfigOptions(antialias=True)
         self.plot = pg.PlotWidget()
         self.plot.setBackground("w")
+        # Disable mouse panning/zoom to avoid accidental reflows
+        self.plot.setMouseEnabled(x=False, y=False)
         layout.addWidget(self.plot)
         self.setLayout(layout)
         self._counts = {}
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh_counts)
+        # Cached bar graph item to update without clearing (reduces flicker)
+        self._bar_item = None
         self.update_timer_interval()
         self.refresh_counts()
 
@@ -147,15 +153,21 @@ class CountUI(QWidget):
         self.draw_chart(selected, totals)
 
     def draw_chart(self, selected: str, totals: dict):
-        self.plot.clear()
         if selected == "All Elections":
             labels = list(totals.keys())
             values = [totals[e] for e in labels]
             x = list(range(len(labels)))
-            bg = pg.BarGraphItem(
-                x=x, height=values, width=0.6, brush=pg.mkBrush("#5c6bc0")
-            )
-            self.plot.addItem(bg)
+            if self._bar_item and getattr(self._bar_item, "_labels_len", None) == len(labels):
+                # Update heights in-place to avoid tearing
+                self._bar_item.setOpts(height=values, x=x)
+            else:
+                if self._bar_item:
+                    self.plot.removeItem(self._bar_item)
+                self._bar_item = pg.BarGraphItem(
+                    x=x, height=values, width=0.6, brush=pg.mkBrush("#5c6bc0")
+                )
+                self._bar_item._labels_len = len(labels)
+                self.plot.addItem(self._bar_item)
             self.plot.getPlotItem().setTitle("Votes per Election")
             self.plot.getPlotItem().getAxis("bottom").setTicks([list(zip(x, labels))])
         else:
@@ -163,10 +175,16 @@ class CountUI(QWidget):
             labels = list(choices.keys())
             values = [choices[c] for c in labels]
             x = list(range(len(labels)))
-            bg = pg.BarGraphItem(
-                x=x, height=values, width=0.6, brush=pg.mkBrush("#26a69a")
-            )
-            self.plot.addItem(bg)
+            if self._bar_item and getattr(self._bar_item, "_labels_len", None) == len(labels):
+                self._bar_item.setOpts(height=values, x=x, brush=pg.mkBrush("#26a69a"))
+            else:
+                if self._bar_item:
+                    self.plot.removeItem(self._bar_item)
+                self._bar_item = pg.BarGraphItem(
+                    x=x, height=values, width=0.6, brush=pg.mkBrush("#26a69a")
+                )
+                self._bar_item._labels_len = len(labels)
+                self.plot.addItem(self._bar_item)
             self.plot.getPlotItem().setTitle(f"{selected} — Votes per Choice")
             self.plot.getPlotItem().getAxis("bottom").setTicks([list(zip(x, labels))])
         self.plot.getPlotItem().getAxis("left").setLabel(text="Count")

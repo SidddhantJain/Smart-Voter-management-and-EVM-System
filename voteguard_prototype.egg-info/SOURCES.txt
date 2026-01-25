@@ -8,7 +8,9 @@ scripts/verify_ledger.py
 scripts/visualizations/manim_vote_flow.py
 scripts/visualizations/pyvis_blockchain_demo.py
 scripts/visualizations/vote_animation_widget.py
+tests/test_admin_candidates_io.py
 tests/test_audit_logger.py
+tests/test_biometric_parties_load.py
 tests/test_counting.py
 tests/test_ledger.py
 tests/test_state_machine.py
