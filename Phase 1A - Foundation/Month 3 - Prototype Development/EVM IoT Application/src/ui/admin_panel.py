@@ -11,6 +11,14 @@ from pathlib import Path
 from typing import Dict, List
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from voteguard.config.env import data_dir
+
+try:
+    # Optional IPFS helper; admin tools will degrade gracefully
+    # when IPFS is not available.
+    from backend import ipfs_client  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    ipfs_client = None  # type: ignore
 
 
 def candidates_path() -> Path:
@@ -73,6 +81,12 @@ class AdminPanel(QtWidgets.QDialog):
         btn_save = QtWidgets.QPushButton("Save Changes")
         btn_import_logo = QtWidgets.QPushButton("Import Logo…")
         btn_import_image = QtWidgets.QPushButton("Import Image…")
+        # Hardware/device actions for admin
+        btn_check_devices = QtWidgets.QPushButton("Check Devices")
+        btn_test_devices = QtWidgets.QPushButton("Test Devices")
+        # IPFS / audit tools
+        btn_show_ipfs = QtWidgets.QPushButton("Show Recent IPFS CIDs")
+        btn_verify_ipfs = QtWidgets.QPushButton("Verify IPFS CID…")
 
         btn_add.clicked.connect(self._add_entry)
         btn_edit.clicked.connect(self._edit_entry)
@@ -80,6 +94,10 @@ class AdminPanel(QtWidgets.QDialog):
         btn_save.clicked.connect(self._save_all)
         btn_import_logo.clicked.connect(lambda: self._import_asset(kind="logo"))
         btn_import_image.clicked.connect(lambda: self._import_asset(kind="image"))
+        btn_check_devices.clicked.connect(self._check_devices)
+        btn_test_devices.clicked.connect(self._test_devices)
+        btn_show_ipfs.clicked.connect(self._show_recent_ipfs)
+        btn_verify_ipfs.clicked.connect(self._verify_ipfs_cid)
 
         # Layout
         layout = QtWidgets.QVBoxLayout(self)
@@ -91,6 +109,10 @@ class AdminPanel(QtWidgets.QDialog):
             btn_remove,
             btn_import_image,
             btn_import_logo,
+            btn_check_devices,
+            btn_test_devices,
+            btn_show_ipfs,
+            btn_verify_ipfs,
             btn_save,
         ):
             row.addWidget(w)
@@ -99,6 +121,150 @@ class AdminPanel(QtWidgets.QDialog):
         # Load data
         self._items: List[Dict] = load_candidates()
         self._refresh_table()
+
+    # --- IPFS / audit tools ------------------------------------------------------
+
+    def _read_audit_records(self) -> List[Dict]:
+        """Load raw audit records from the hash-chained audit ledger.
+
+        Returns a list of dicts with at least 'kind' and 'details'.
+        Any error yields an empty list.
+        """
+
+        try:
+            path = data_dir() / "audit_ledger.json"
+            if not path.exists():
+                return []
+            data = json.loads(path.read_text("utf-8"))
+            return data.get("records", [])
+        except Exception:
+            return []
+
+    def _show_recent_ipfs(self) -> None:
+        """Show the last N IPFS-related CIDs from the audit ledger.
+
+        This scans audit_ledger.json for events that include an
+        'ipfs_cid' in their payload and shows a concise list for
+        quick reference by the administrator.
+        """
+
+        records = self._read_audit_records()
+        if not records:
+            QtWidgets.QMessageBox.information(
+                self,
+                "IPFS CIDs",
+                "No audit records found yet.",
+            )
+            return
+
+        # Newest first (records are stored in append order)
+        recent = []
+        for rec in reversed(records):
+            try:
+                payload = json.loads(rec.get("payload", "{}"))
+            except Exception:
+                continue
+            details = payload.get("details", {})
+            cid = details.get("ipfs_cid")
+            if not cid:
+                continue
+            recent.append(
+                {
+                    "seq": rec.get("seq"),
+                    "kind": payload.get("kind"),
+                    "cid": cid,
+                }
+            )
+            if len(recent) >= 10:
+                break
+
+        if not recent:
+            QtWidgets.QMessageBox.information(
+                self,
+                "IPFS CIDs",
+                "No IPFS CIDs found in audit records yet.",
+            )
+            return
+
+        lines = ["Last IPFS-related CIDs (newest first):", ""]
+        for r in recent:
+            lines.append(
+                f"Seq {r['seq']}: {r['kind']}\n  CID: {r['cid']}"
+            )
+        QtWidgets.QMessageBox.information(
+            self,
+            "IPFS CIDs",
+            "\n".join(lines),
+        )
+
+    def _verify_ipfs_cid(self) -> None:
+        """Verify that a CID's content matches current results or audit files.
+
+        This prompts the admin for a CID and then compares the IPFS
+        content to the on-disk results.json and audit_ledger.json
+        (if present). It reports whether each comparison matches.
+        """
+
+        if ipfs_client is None or not getattr(ipfs_client, "cat", None):
+            QtWidgets.QMessageBox.warning(
+                self,
+                "IPFS Verify",
+                "IPFS client is not available in this environment.",
+            )
+            return
+
+        cid, ok = QtWidgets.QInputDialog.getText(
+            self,
+            "Verify IPFS CID",
+            "Enter IPFS CID to verify:",
+        )
+        if not ok or not cid.strip():
+            return
+        cid = cid.strip()
+
+        data = ipfs_client.cat(cid)
+        if data is None:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "IPFS Verify",
+                "Could not fetch content for this CID from IPFS.",
+            )
+            return
+
+        results_path = (data_dir() / "results.json").resolve()
+        audit_path = (data_dir() / "audit_ledger.json").resolve()
+
+        def load_bytes(p: Path) -> bytes | None:
+            try:
+                if not p.is_file():
+                    return None
+                return p.read_bytes()
+            except Exception:
+                return None
+
+        results_bytes = load_bytes(results_path)
+        audit_bytes = load_bytes(audit_path)
+
+        def verdict(name: str, local: bytes | None) -> str:
+            if local is None:
+                return f"- {name}: file not found"
+            return (
+                f"- {name}: MATCHES local file"
+                if local == data
+                else f"- {name}: DOES NOT MATCH local file"
+            )
+
+        lines = [
+            f"CID: {cid}",
+            "",
+            verdict("results.json", results_bytes),
+            verdict("audit_ledger.json", audit_bytes),
+        ]
+        QtWidgets.QMessageBox.information(
+            self,
+            "IPFS Verify",
+            "\n".join(lines),
+        )
 
     def _refresh_table(self):
         self.table.setRowCount(len(self._items))
@@ -163,6 +329,121 @@ class AdminPanel(QtWidgets.QDialog):
         key = "logo_path" if kind == "logo" else "image_path"
         self._items[r][key] = fp
         self._refresh_table()
+
+    # --- Hardware / device checks -------------------------------------------------
+
+    def _check_devices(self) -> None:
+        """Check connection/initialization status of fingerprint/iris/camera.
+
+        Runs a lightweight initialize-only check and reports status for each
+        device. Uses try/except so that a missing driver never crashes the
+        admin panel; instead the status is shown as "Missing (simulated)".
+        """
+
+        try:
+            from hardware.device_manager import DeviceManager
+
+            dm = DeviceManager()
+            try:
+                init_status = dm.initialize_all()
+            except Exception:
+                init_status = {}
+
+            fp_available = getattr(dm.fingerprint, "available", True)
+            iris_available = getattr(dm.retina, "available", True)
+            cam_available = getattr(dm.camera, "available", True)
+
+            # For the camera, also consider OpenCV access via index 0.
+            opencv_camera_ok = False
+            try:
+                import cv2
+
+                cap = cv2.VideoCapture(0)
+                opencv_camera_ok = cap is not None and cap.isOpened()
+                if cap is not None:
+                    cap.release()
+            except Exception:
+                opencv_camera_ok = False
+
+            def label(available: bool, ok: bool, *, also_ok: bool = False) -> str:
+                effective_ok = ok or also_ok
+                if not available and not effective_ok:
+                    return "Missing (simulated)"
+                return "OK" if effective_ok else "Error"
+
+            msg = "Device Status:\n\n" + "\n".join(
+                [
+                    f"Fingerprint: {label(fp_available, init_status.get('fingerprint', False))}",
+                    f"Iris: {label(iris_available, init_status.get('retina', False))}",
+                    f"Camera: {label(cam_available, init_status.get('camera', False), also_ok=opencv_camera_ok)}",
+                ]
+            )
+            QtWidgets.QMessageBox.information(self, "Device Status", msg)
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Device Status",
+                f"Could not check devices.\n\n{e}",
+            )
+
+    def _test_devices(self) -> None:
+        """Run a simple capture test for each device.
+
+        This is similar to the biometric capture screen's logic: if a
+        device is present and capture succeeds it is marked "Real",
+        otherwise it is reported as "Simulated" so the admin knows that
+        path currently uses fallback behaviour.
+        """
+
+        real = {"fingerprint": False, "iris": False, "face": False}
+        simulated = {"fingerprint": False, "iris": False, "face": False}
+
+        try:
+            from hardware.device_manager import DeviceManager
+
+            dm = DeviceManager()
+            try:
+                init_status = dm.initialize_all()
+            except Exception:
+                init_status = {}
+            try:
+                capture_status = (
+                    dm.capture_all() if init_status and all(init_status.values()) else {}
+                )
+            except Exception:
+                capture_status = {}
+
+            fp_available = getattr(dm.fingerprint, "available", False)
+            iris_available = getattr(dm.retina, "available", False)
+            cam_available = getattr(dm.camera, "available", False)
+
+            if fp_available and capture_status.get("fingerprint"):
+                real["fingerprint"] = True
+            else:
+                simulated["fingerprint"] = True
+
+            if iris_available and capture_status.get("retina"):
+                real["iris"] = True
+            else:
+                simulated["iris"] = True
+
+            if cam_available and capture_status.get("camera"):
+                real["face"] = True
+            else:
+                simulated["face"] = True
+        except Exception:
+            simulated = {k: True for k in simulated}
+
+        def mode(is_real: bool) -> str:
+            return "Real" if is_real else "Simulated"
+
+        msg = (
+            "Device Test Results:\n\n"
+            f"Fingerprint: {mode(real['fingerprint'])}\n"
+            f"Iris: {mode(real['iris'])}\n"
+            f"Camera/Face: {mode(real['face'])}"
+        )
+        QtWidgets.QMessageBox.information(self, "Device Test", msg)
 
 
 class CandidateEditDialog(QtWidgets.QDialog):

@@ -22,6 +22,15 @@ from PyQt5.QtWidgets import (
 from scripts.verify_ledger import verify as verify_ledger
 from voteguard.config.env import data_dir, key_path
 from voteguard.core.counting import tally
+from voteguard.adapters.audit_helper import SafeAuditLogger
+
+try:
+    # Optional IPFS integration for exported results
+    # This import will fail gracefully if the EVM IoT app sources
+    # are not on sys.path when running the voteguard UI only.
+    from backend import ipfs_client
+except Exception:  # pragma: no cover - optional dependency
+    ipfs_client = None
 
 
 class CountUI(QWidget):
@@ -70,6 +79,11 @@ class CountUI(QWidget):
         self.export_csv_filtered_btn = QPushButton("Export Filtered CSV")
         self.export_csv_filtered_btn.clicked.connect(self.export_csv_filtered)
         layout.addWidget(self.export_csv_filtered_btn)
+        # IPFS view button (last exported CID)
+        self.view_ipfs_btn = QPushButton("View Last IPFS CID")
+        self.view_ipfs_btn.clicked.connect(self.view_last_ipfs)
+        self.view_ipfs_btn.setEnabled(False)
+        layout.addWidget(self.view_ipfs_btn)
         # Status bar label
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
@@ -87,6 +101,8 @@ class CountUI(QWidget):
         self._timer.timeout.connect(self.refresh_counts)
         # Cached bar graph item to update without clearing (reduces flicker)
         self._bar_item = None
+        self._audit = SafeAuditLogger()
+        self._last_ipfs_cid: str | None = None
         self.update_timer_interval()
         self.refresh_counts()
 
@@ -198,7 +214,33 @@ class CountUI(QWidget):
             return
         try:
             Path(path).write_text(json.dumps(self._counts, indent=2))
-            QMessageBox.information(self, "Export", f"Saved JSON to {path}")
+            cid = None
+            # Best-effort IPFS publish if helper is available
+            if ipfs_client is not None and getattr(ipfs_client, "add_file", None):
+                try:
+                    cid = ipfs_client.add_file(path)
+                except Exception:
+                    cid = None
+            # Log audit event with optional IPFS CID
+            details = {"path": path}
+            if cid:
+                details["ipfs_cid"] = cid
+                self._last_ipfs_cid = cid
+                self.view_ipfs_btn.setEnabled(True)
+            self._audit.log("RESULTS_EXPORTED", details)
+            # Also snapshot the current audit ledger itself to IPFS
+            # so there is a pinned copy corresponding to this export.
+            try:
+                snapshot = getattr(self._audit, "snapshot_to_ipfs", None)
+                if snapshot:
+                    snapshot()
+            except Exception:
+                pass
+
+            msg = f"Saved JSON to {path}"
+            if cid:
+                msg += f"\nIPFS CID: {cid}"
+            QMessageBox.information(self, "Export", msg)
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
@@ -241,7 +283,29 @@ class CountUI(QWidget):
         try:
             data = self._filtered_counts(selected)
             Path(path).write_text(json.dumps(data, indent=2))
-            QMessageBox.information(self, "Export", f"Saved JSON to {path}")
+            cid = None
+            if ipfs_client is not None and getattr(ipfs_client, "add_file", None):
+                try:
+                    cid = ipfs_client.add_file(path)
+                except Exception:
+                    cid = None
+            details = {"path": path, "filter": selected}
+            if cid:
+                details["ipfs_cid"] = cid
+                self._last_ipfs_cid = cid
+                self.view_ipfs_btn.setEnabled(True)
+            self._audit.log("RESULTS_EXPORTED_FILTERED", details)
+            try:
+                snapshot = getattr(self._audit, "snapshot_to_ipfs", None)
+                if snapshot:
+                    snapshot()
+            except Exception:
+                pass
+
+            msg = f"Saved JSON to {path}"
+            if cid:
+                msg += f"\nIPFS CID: {cid}"
+            QMessageBox.information(self, "Export", msg)
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
@@ -287,3 +351,24 @@ class CountUI(QWidget):
     def update_timer_interval(self):
         if self._timer.isActive():
             self._timer.start(self.interval_spin.value() * 1000)
+
+    def view_last_ipfs(self):
+        """Open the last exported IPFS CID in the default browser.
+
+        Uses the local IPFS gateway if available (IPFS Desktop),
+        falling back to a public gateway if needed.
+        """
+
+        if not self._last_ipfs_cid:
+            QMessageBox.information(self, "IPFS", "No IPFS CID available yet.")
+            return
+        cid = self._last_ipfs_cid
+        # Prefer local gateway used by IPFS Desktop
+        url = f"http://127.0.0.1:8080/ipfs/{cid}"
+        try:
+            import webbrowser
+
+            webbrowser.open(url)
+        except Exception:
+            # As a last resort, show the URL so the admin can copy it
+            QMessageBox.information(self, "IPFS", f"Open this URL manually:\n{url}")

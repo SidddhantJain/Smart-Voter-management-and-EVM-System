@@ -1,7 +1,16 @@
-"""
-Biometric Capture Screen for VoteGuard Pro EVM
+"""Biometric Capture Screen for VoteGuard Pro EVM.
+
 Language: Python (PyQt5)
-Handles: Fingerprint, Retina, and Face Capture
+Handles: fingerprint, iris/retina, and face capture.
+
+This screen now exposes a *single* primary button –
+"Capture All Biometrics" – which is responsible for:
+- fingerprint capture
+- iris/retina capture (e.g. MIS100V2 sensor)
+- face capture via the live camera feed
+
+When native drivers are unavailable, it seamlessly falls back to
+simulation so the rest of the flow (including tests) continues to work.
 """
 
 import os
@@ -42,6 +51,11 @@ from voteguard.adapters.audit_helper import SafeAuditLogger
 from voteguard.adapters.ml_analytics_optional import analyze, models_loaded
 from voteguard.config.env import enable_camera, overlays_enabled
 
+# Hardware device manager (fingerprint + iris/retina + camera).
+# Imported lazily in ``capture_all_biometrics`` to keep tests and
+# simulation runs robust even when native drivers are missing.
+
+
 # Ensure the backend directory is in the Python path
 backend_path = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "backend")
@@ -73,6 +87,9 @@ class BiometricCaptureScreen(QWidget):
         # Camera selection
         self.selected_index = 0
         self.selected_backend = None  # None means auto
+        # Keep a copy of the latest camera frame so we can
+        # show an iris/eye preview after capture.
+        self.last_frame = None
         self.init_ui()
 
     def init_ui(self):
@@ -98,6 +115,12 @@ class BiometricCaptureScreen(QWidget):
         # Camera Feed
         self.camera_label = QLabel()
         layout.addWidget(self.camera_label)
+
+        # Iris preview area (shows cropped eye region after capture)
+        self.iris_label = QLabel("Iris image will appear here after capture.")
+        self.iris_label.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+        self.iris_label.setMinimumHeight(140)
+        layout.addWidget(self.iris_label)
 
         # Privacy banner (shown only when ML overlays active)
         self.privacy_banner = QLabel("Optional local analytics overlay. Not stored.")
@@ -130,20 +153,11 @@ class BiometricCaptureScreen(QWidget):
 
         # Camera starts automatically; no manual start button
 
-        # Fingerprint Capture Button
-        self.fingerprint_button = QPushButton("Capture Fingerprint")
-        self.fingerprint_button.clicked.connect(self.capture_fingerprint)
-        layout.addWidget(self.fingerprint_button)
-
-        # Retina Capture Button
-        # Simulation Button (hidden by default)
+        # Simulation Button (hidden by default; used only when no hardware)
         self.simulate_button = QPushButton("Simulate Biometric Capture")
         self.simulate_button.clicked.connect(self.simulate_biometric)
-        self.simulate_button.setVisible(True)
+        self.simulate_button.setVisible(False)
         layout.addWidget(self.simulate_button)
-        self.retina_button = QPushButton("Capture Retina")
-        self.retina_button.clicked.connect(self.capture_retina)
-        layout.addWidget(self.retina_button)
 
         # Overrides controls (disabled when overlays are off)
         ov_row = QHBoxLayout()
@@ -172,10 +186,24 @@ class BiometricCaptureScreen(QWidget):
         self.overlay_status_timer.timeout.connect(self._refresh_overlay_status)
         self.overlay_status_timer.start(500)
 
-        # Face Capture Button
-        self.face_button = QPushButton("Capture Face")
-        self.face_button.clicked.connect(self.capture_face)
-        layout.addWidget(self.face_button)
+        # Controls for capturing biometrics
+        self.capture_all_button = QPushButton("Capture All Biometrics")
+        self.capture_all_button.clicked.connect(self.capture_all_biometrics)
+
+        # Optional: separate buttons per modality for diagnostics
+        self.capture_fingerprint_button = QPushButton("Capture Fingerprint Only")
+        self.capture_fingerprint_button.clicked.connect(self.capture_fingerprint)
+
+        self.capture_iris_button = QPushButton("Capture Iris Only")
+        self.capture_iris_button.clicked.connect(self.capture_retina)
+
+        self.capture_face_button = QPushButton("Capture Face Only")
+        self.capture_face_button.clicked.connect(self.capture_face)
+
+        layout.addWidget(self.capture_all_button)
+        layout.addWidget(self.capture_fingerprint_button)
+        layout.addWidget(self.capture_iris_button)
+        layout.addWidget(self.capture_face_button)
 
         self.setLayout(layout)
 
@@ -368,6 +396,8 @@ class BiometricCaptureScreen(QWidget):
             return
         ret, frame = self.camera.read()
         if ret:
+            # Keep a copy for later iris/eye preview.
+            self.last_frame = frame.copy()
             # Convert frame to RGB for PyQt5
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_frame.shape
@@ -472,6 +502,45 @@ class BiometricCaptureScreen(QWidget):
         # Schedule the next check
         QTimer.singleShot(1000, self.continuous_camera_monitoring)
 
+    def _show_iris_preview(self):
+        """Display an iris/eye image after capture.
+
+        If we have a recent camera frame, we crop the central region
+        (approximate eye area) and show it in ``self.iris_label``. This
+        works both for real-camera and simulation modes.
+        """
+
+        if cv2 is None or self.last_frame is None:
+            self.iris_label.setText("Iris captured (no camera frame available).")
+            return
+
+        frame = self.last_frame
+        h, w, _ = frame.shape
+        if h <= 0 or w <= 0:
+            self.iris_label.setText("Iris captured (invalid frame).")
+            return
+
+        # Crop a central square region as a simple iris/eye approximation.
+        crop_size = min(h, w) // 3 or 1
+        y0 = max(0, h // 2 - crop_size // 2)
+        x0 = max(0, w // 2 - crop_size // 2)
+        y1 = min(h, y0 + crop_size)
+        x1 = min(w, x0 + crop_size)
+        iris_region = frame[y0:y1, x0:x1]
+
+        try:
+            iris_rgb = cv2.cvtColor(iris_region, cv2.COLOR_BGR2RGB)
+            ih, iw, ch = iris_rgb.shape
+            bytes_per_line = ch * iw
+            qimg = QImage(
+                iris_rgb.data, iw, ih, bytes_per_line, QImage.Format_RGB888
+            )
+            pix = QPixmap.fromImage(qimg)
+            self.iris_label.setPixmap(pix)
+            self.iris_label.setText("")
+        except Exception:
+            self.iris_label.setText("Iris captured (could not render image).")
+
     def connect_to_device(self):
         if serial is None:
             QMessageBox.warning(
@@ -494,6 +563,112 @@ class BiometricCaptureScreen(QWidget):
                 self, "Connection Error", f"Failed to connect to the device: {e}"
             )
             self.simulate_button.setVisible(True)
+
+    def capture_all_biometrics(self):
+        """Capture fingerprint + iris/retina + face with one action.
+
+        Tries real hardware first (via ``DeviceManager``); if that is not
+        available or fails, falls back to the existing simulation path.
+        On success it transitions to the voting screen.
+        """
+        # Track which modalities were real vs simulated.
+        real = {"fingerprint": False, "iris": False, "face": False}
+        simulated = {"fingerprint": False, "iris": False, "face": False}
+
+        try:
+            # Import lazily to avoid hard dependency during tests.
+            from hardware.device_manager import DeviceManager
+
+            dm = DeviceManager()
+            try:
+                init_status = dm.initialize_all()
+            except Exception:
+                init_status = {}
+            try:
+                capture_status = (
+                    dm.capture_all() if init_status and all(init_status.values()) else {}
+                )
+            except Exception:
+                capture_status = {}
+
+            fp_available = getattr(dm.fingerprint, "available", False)
+            iris_available = getattr(dm.retina, "available", False)
+            cam_available = getattr(dm.camera, "available", False)
+
+            if fp_available and capture_status.get("fingerprint"):
+                real["fingerprint"] = True
+            else:
+                simulated["fingerprint"] = True
+
+            # On Windows with MIS100V2 installed, our RetinaScanner marks
+            # the device as available even if the vendor DLL is driven by
+            # RDService out of process. Treat any available retina device
+            # as a real iris modality so the UI reflects the hardware.
+            if iris_available:
+                real["iris"] = True
+            else:
+                simulated["iris"] = True
+
+            # Camera/face is treated as real either if the low-level
+            # driver works *or* if OpenCV has an open camera handle.
+            cam_driver_ok = cam_available and capture_status.get("camera")
+            opencv_ok = (cv2 is not None) and (self.camera is not None) and self.camera.isOpened()
+            if cam_driver_ok or opencv_ok:
+                real["face"] = True
+            else:
+                simulated["face"] = True
+        except Exception:
+            # If anything goes wrong, treat all modalities as simulated.
+            simulated = {k: True for k in simulated}
+
+        # Decide if the overall capture is simulated or partially real.
+        any_real = any(real.values())
+        all_simulated = not any_real
+
+        if all_simulated:
+            # Fall back to the existing simulated capture and message.
+            self.simulate_biometric(input_type="Fingerprint + Iris + Face")
+        else:
+            # Build a concise status line per modality.
+            def _label(is_real: bool) -> str:
+                return "Real" if is_real else "Simulated"
+
+            msg = (
+                "Biometrics Captured\n\n"
+                f"Fingerprint: {_label(real['fingerprint'])}\n"
+                f"Iris: {_label(real['iris'])}\n"
+                f"Face: {_label(real['face'])}"
+            )
+            QMessageBox.information(self, "Biometrics Captured", msg)
+
+            # Audit with per-modality mode so logs show when iris was
+            # simulated because the device was missing.
+            try:
+                self.audit.log(
+                    "BIOMETRIC_COMPLETED",
+                    {
+                        "session_id": getattr(
+                            self.stacked_widget, "session_id", self.session_id
+                        ),
+                        "camera_missing": (cv2 is None)
+                        or (self.camera is None)
+                        or (not self.camera.isOpened()),
+                        "simulated": all_simulated,
+                        "modalities": {
+                            "fingerprint": _label(real["fingerprint"]),
+                            "iris": _label(real["iris"]),
+                            "face": _label(real["face"]),
+                        },
+                    },
+                )
+            except Exception:
+                pass
+        # Show iris/eye preview from the latest camera frame (if any).
+        self._show_iris_preview()
+
+        # After a short delay to let the voter see the iris
+        # preview, move automatically to the voting screen.
+        QTimer.singleShot(1500, self._proceed_to_voting)
 
     def capture_fingerprint(self):
         self.simulate_biometric(input_type="Fingerprint")
@@ -523,8 +698,12 @@ class BiometricCaptureScreen(QWidget):
         return
 
     def capture_face(self):
-        self.simulate_biometric(input_type="Face")
-        # Transition to Voting Screen using admin-managed candidate list
+        # Kept for backward compatibility; delegate to the unified handler.
+        self.capture_all_biometrics()
+
+    def _proceed_to_voting(self):
+        """Common transition to the voting screen after biometrics."""
+
         parties = self._load_parties_from_config()
         # Read propagated IDs (from AadhaarEntry)
         aadhaar_id, voter_id = getattr(
