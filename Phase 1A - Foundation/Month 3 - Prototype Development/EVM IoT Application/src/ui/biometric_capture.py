@@ -4,7 +4,7 @@ Language: Python (PyQt5)
 Handles: fingerprint, iris/retina, and face capture.
 
 This screen now exposes a *single* primary button –
-"Capture All Biometrics" – which is responsible for:
+"Submit All Biometrics" – which is responsible for:
 - fingerprint capture
 - iris/retina capture (e.g. MIS100V2 sensor)
 - face capture via the live camera feed
@@ -14,7 +14,9 @@ simulation so the rest of the flow (including tests) continues to work.
 """
 
 import os
+import random
 import sys
+from pathlib import Path
 
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -41,7 +43,7 @@ try:
     import numpy as np  # optional
 except Exception:
     np = None
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 
 try:
     import serial  # optional
@@ -90,6 +92,8 @@ class BiometricCaptureScreen(QWidget):
         # Keep a copy of the latest camera frame so we can
         # show an iris/eye preview after capture.
         self.last_frame = None
+        self.thumb_fingerprint_paths = self._collect_thumb_fingerprint_images()
+        self.retina_image_paths = self._collect_retina_images()
         self.init_ui()
 
     def init_ui(self):
@@ -116,11 +120,19 @@ class BiometricCaptureScreen(QWidget):
         self.camera_label = QLabel()
         layout.addWidget(self.camera_label)
 
-        # Iris preview area (shows cropped eye region after capture)
-        self.iris_label = QLabel("Iris image will appear here after capture.")
+        # Retina preview area (shows grayscale eye region after capture)
+        self.iris_label = QLabel("Retina image will appear here after capture.")
         self.iris_label.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
         self.iris_label.setMinimumHeight(140)
         layout.addWidget(self.iris_label)
+
+        # Fingerprint preview area (thumb-only archive images)
+        self.fingerprint_label = QLabel(
+            "Thumb fingerprint image will appear here after capture."
+        )
+        self.fingerprint_label.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+        self.fingerprint_label.setMinimumHeight(140)
+        layout.addWidget(self.fingerprint_label)
 
         # Privacy banner (shown only when ML overlays active)
         self.privacy_banner = QLabel("Optional local analytics overlay. Not stored.")
@@ -187,7 +199,7 @@ class BiometricCaptureScreen(QWidget):
         self.overlay_status_timer.start(500)
 
         # Controls for capturing biometrics
-        self.capture_all_button = QPushButton("Capture All Biometrics")
+        self.capture_all_button = QPushButton("Submit All Biometrics")
         self.capture_all_button.clicked.connect(self.capture_all_biometrics)
 
         # Optional: separate buttons per modality for diagnostics
@@ -281,6 +293,97 @@ class BiometricCaptureScreen(QWidget):
             f"Age/Gender: {'Available' if demo_ok else 'Unavailable'}"
         )
         self.model_banner.setText(status_text)
+
+    def _find_repo_root(self) -> Path:
+        """Walk upward until the repository root with `archive/` is found."""
+
+        current = Path(__file__).resolve()
+        for parent in current.parents:
+            if (parent / "archive").exists():
+                return parent
+        return current.parents[5]
+
+    def _collect_thumb_fingerprint_images(self):
+        """Collect archive images whose filenames indicate a thumb fingerprint."""
+
+        repo_root = self._find_repo_root()
+        archive_root = repo_root / "archive"
+        if not archive_root.exists():
+            return []
+
+        thumb_paths = []
+        for path in archive_root.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in {".bmp", ".png", ".jpg", ".jpeg"}:
+                continue
+            if "thumb" not in path.name.lower():
+                continue
+            thumb_paths.append(path)
+        return thumb_paths
+
+    def _collect_retina_images(self):
+        """Collect grayscale retina/eye images from the retena dataset."""
+
+        repo_root = self._find_repo_root()
+        retina_root = repo_root / "retena" / "images_mono"
+        if not retina_root.exists():
+            return []
+
+        retina_paths = []
+        for path in retina_root.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in {".bmp", ".png", ".jpg", ".jpeg"}:
+                continue
+            retina_paths.append(path)
+        return retina_paths
+
+    def _show_fingerprint_preview(self, image_path: Path):
+        """Render a fingerprint image in the preview label."""
+
+        pixmap = QPixmap(str(image_path))
+        if pixmap.isNull():
+            self.fingerprint_label.setText("Unable to load thumb fingerprint image.")
+            self.fingerprint_label.setPixmap(QPixmap())
+            return
+
+        scaled = pixmap.scaled(
+            self.fingerprint_label.width() or 320,
+            self.fingerprint_label.height() or 140,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.fingerprint_label.setPixmap(scaled)
+        self.fingerprint_label.setText("")
+
+    def _pick_random_thumb_fingerprint(self):
+        if not self.thumb_fingerprint_paths:
+            return None
+        return random.choice(self.thumb_fingerprint_paths)
+
+    def _pick_random_retina_image(self):
+        if not self.retina_image_paths:
+            return None
+        return random.choice(self.retina_image_paths)
+
+    def _show_retina_preview(self, image_path: Path):
+        """Render a grayscale retina image in the preview label."""
+
+        pixmap = QPixmap(str(image_path))
+        if pixmap.isNull():
+            self.iris_label.setText("Unable to load retina image.")
+            self.iris_label.setPixmap(QPixmap())
+            return
+
+        scaled = pixmap.scaled(
+            self.iris_label.width() or 320,
+            self.iris_label.height() or 140,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.iris_label.setPixmap(scaled)
+        self.iris_label.setText("")
 
     def start_camera(self):
         if cv2 is None:
@@ -529,11 +632,11 @@ class BiometricCaptureScreen(QWidget):
         iris_region = frame[y0:y1, x0:x1]
 
         try:
-            iris_rgb = cv2.cvtColor(iris_region, cv2.COLOR_BGR2RGB)
-            ih, iw, ch = iris_rgb.shape
-            bytes_per_line = ch * iw
+            iris_gray = cv2.cvtColor(iris_region, cv2.COLOR_BGR2GRAY)
+            ih, iw = iris_gray.shape
+            bytes_per_line = iw
             qimg = QImage(
-                iris_rgb.data, iw, ih, bytes_per_line, QImage.Format_RGB888
+                iris_gray.data, iw, ih, bytes_per_line, QImage.Format_Grayscale8
             )
             pix = QPixmap.fromImage(qimg)
             self.iris_label.setPixmap(pix)
@@ -671,7 +774,39 @@ class BiometricCaptureScreen(QWidget):
         QTimer.singleShot(1500, self._proceed_to_voting)
 
     def capture_fingerprint(self):
-        self.simulate_biometric(input_type="Fingerprint")
+        thumb_image = self._pick_random_thumb_fingerprint()
+        if thumb_image is None:
+            QMessageBox.warning(
+                self,
+                "Fingerprint Archive Missing",
+                "No thumb fingerprint images were found in the archive folder.",
+            )
+            self.simulate_biometric(input_type="Fingerprint")
+            return
+
+        self._show_fingerprint_preview(thumb_image)
+        self.simulation_mode = False
+        QMessageBox.information(
+            self,
+            "Fingerprint Captured",
+            "Thumb fingerprint captured successfully.",
+        )
+        print(f"[FINGERPRINT] Thumb fingerprint submitted: {thumb_image}")
+        self.audit.log(
+            "BIOMETRIC_COMPLETED",
+            {
+                "session_id": getattr(
+                    self.stacked_widget, "session_id", self.session_id
+                ),
+                "camera_missing": (cv2 is None)
+                or (self.camera is None)
+                or (not self.camera.isOpened()),
+                "simulated": False,
+                "modality": "fingerprint",
+                "dataset": "archive/thumb-only",
+                "image": str(thumb_image),
+            },
+        )
         return
 
     def simulate_biometric(self, input_type="Biometric"):
@@ -694,7 +829,39 @@ class BiometricCaptureScreen(QWidget):
         )
 
     def capture_retina(self):
-        self.simulate_biometric(input_type="Retina")
+        retina_image = self._pick_random_retina_image()
+        if retina_image is None:
+            QMessageBox.warning(
+                self,
+                "Retina Archive Missing",
+                "No grayscale retina images were found in retena/images_mono.",
+            )
+            self.simulate_biometric(input_type="Retina")
+            return
+
+        self._show_retina_preview(retina_image)
+        self.simulation_mode = False
+        QMessageBox.information(
+            self,
+            "Retina Captured",
+            "Retina image captured successfully.",
+        )
+        print(f"[RETINA] Retina image submitted: {retina_image}")
+        self.audit.log(
+            "BIOMETRIC_COMPLETED",
+            {
+                "session_id": getattr(
+                    self.stacked_widget, "session_id", self.session_id
+                ),
+                "camera_missing": (cv2 is None)
+                or (self.camera is None)
+                or (not self.camera.isOpened()),
+                "simulated": False,
+                "modality": "retina",
+                "dataset": "retena/images_mono",
+                "image": str(retina_image),
+            },
+        )
         return
 
     def capture_face(self):

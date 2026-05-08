@@ -32,3 +32,7 @@ Data flow:
 - `AuditStore.append_event` logs operational events in a parallel chain.
 - `CastRegistry` prevents double-voting using salted hashes.
 - `ChainAnchor` optionally anchors record hashes.
+
+IPFS integration (prototype):
+- An optional IPFS adapter (`backend.ipfs_client` combined with `SafeAuditLogger`) pins exported result files and periodic snapshots of `audit_ledger.json` to a local IPFS node.
+- The resulting CIDs are stored in the hash-chained audit ledger as events, providing a content-addressed, tamper-evident view of key artifacts without changing the core Clean Architecture boundaries.
