@@ -2,6 +2,11 @@
 
 This document is intentionally written in an academic, research-oriented style to serve as a foundation for a peer-reviewed publication. It articulates the system vision, research motivation, architectural design, security and trust model, accessibility-first constraints, implementation details, evaluation strategy, limitations, and future scope of the Smart Voter Management and EVM System (hereafter, VoteGuard Pro).
 
+## License
+
+This repository is proprietary and all rights are reserved by the copyright holder.
+No permission is granted to use, copy, modify, distribute, or sublicense the code or documentation except with prior written permission.
+
 ## 1. Project Title
 
 VoteGuard Pro: A Security-First, Accessibility-Constrained Prototype for Auditable Electronic Voting with Biometric Sensing and Blockchain-Ready Persistence

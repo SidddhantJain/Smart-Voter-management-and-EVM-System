@@ -221,7 +221,7 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         group.setPos(300, 60)
         # Rotate the envelope around its top center for letter-like insertion
         group.setTransformOriginPoint(base_rect.width() / 2.0, 0)
-        group.setData(0, flap)
+        group.setData(0, front_flap)
         self.scene.addItem(group)
         return group
 
@@ -424,7 +424,15 @@ def visualize_vote(
     on_done=None,
 ) -> None:
     dlg = VoteVisualizerDialog(parent)
+    # Keep a strong reference on the parent while the dialog is active.
+    if parent is not None:
+        setattr(parent, "_vote_visualizer_dialog", dlg)
     if callable(on_done):
         dlg.accepted.connect(on_done)
+    dlg.finished.connect(
+        lambda _: parent is not None
+        and hasattr(parent, "_vote_visualizer_dialog")
+        and setattr(parent, "_vote_visualizer_dialog", None)
+    )
     dlg.show()
     QtCore.QTimer.singleShot(50, lambda: dlg.run_flow(candidate_name, image_path))
