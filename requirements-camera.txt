@@ -1,6 +1,5 @@
 # Optional camera overlays; install only if needed.
 # Ensure Python version has prebuilt wheels for these packages.
-opencv-python==4.13.0.90
-numpy==2.2.6
+opencv-contrib-python==4.13.0.90
 onnxruntime==1.23.2
 requests==2.31.0

@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import Dict, List
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from voteguard.config.election import (
+    DEFAULT_ELECTION_SETTINGS,
+    load_election_settings,
+    save_election_settings,
+)
 from voteguard.config.env import data_dir
 
 try:
@@ -58,13 +63,53 @@ class AdminPanel(QtWidgets.QDialog):
         self.resize(900, 600)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
 
+        self._election_settings = load_election_settings()
+
+        settings_box = QtWidgets.QGroupBox("Election Settings")
+        settings_form = QtWidgets.QFormLayout(settings_box)
+        self.election_type_combo = QtWidgets.QComboBox()
+        self.election_type_combo.addItems(
+            [
+                "Vidhan Sabha",
+                "Rajya Sabha",
+                "Presidential",
+                "Lok Sabha",
+                "Municipal",
+                "Corporation",
+                "Co-operative",
+                "Other",
+            ]
+        )
+        self.constituency_edit = QtWidgets.QLineEdit()
+        self.state_edit = QtWidgets.QLineEdit()
+        self.server_host_edit = QtWidgets.QLineEdit()
+        self.server_port_edit = QtWidgets.QSpinBox()
+        self.server_port_edit.setRange(1, 65535)
+        self.approval_host_edit = QtWidgets.QLineEdit()
+        self.approval_port_edit = QtWidgets.QSpinBox()
+        self.approval_port_edit.setRange(1, 65535)
+        self.btn_save_settings = QtWidgets.QPushButton("Save Election Settings")
+        self.btn_save_settings.clicked.connect(self._save_election_settings)
+        settings_form.addRow("Election Type", self.election_type_combo)
+        settings_form.addRow("Constituency", self.constituency_edit)
+        settings_form.addRow("State", self.state_edit)
+        settings_form.addRow("Server Host", self.server_host_edit)
+        settings_form.addRow("Server Port", self.server_port_edit)
+        settings_form.addRow("Approval Host", self.approval_host_edit)
+        settings_form.addRow("Approval Port", self.approval_port_edit)
+        settings_form.addRow(self.btn_save_settings)
+
+        self._apply_election_settings_to_form()
+
         self.table = QtWidgets.QTableWidget(self)
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
             [
                 "Party",
                 "Candidate",
                 "Symbol",
+                "Constituency",
+                "Election Types",
                 "Image Path",
                 "Logo Path",
                 "Enabled",
@@ -101,6 +146,7 @@ class AdminPanel(QtWidgets.QDialog):
 
         # Layout
         layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(settings_box)
         layout.addWidget(self.table)
         row = QtWidgets.QHBoxLayout()
         for w in (
@@ -121,6 +167,32 @@ class AdminPanel(QtWidgets.QDialog):
         # Load data
         self._items: List[Dict] = load_candidates()
         self._refresh_table()
+
+    def _apply_election_settings_to_form(self) -> None:
+        settings = {**DEFAULT_ELECTION_SETTINGS, **self._election_settings}
+        election_type = str(settings.get("election_type", DEFAULT_ELECTION_SETTINGS["election_type"]))
+        index = self.election_type_combo.findText(election_type)
+        self.election_type_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.constituency_edit.setText(str(settings.get("constituency", "")))
+        self.state_edit.setText(str(settings.get("state", "")))
+        self.server_host_edit.setText(str(settings.get("server_host", "127.0.0.1")))
+        self.server_port_edit.setValue(int(settings.get("server_port", 8785)))
+        self.approval_host_edit.setText(str(settings.get("approval_host", "127.0.0.1")))
+        self.approval_port_edit.setValue(int(settings.get("approval_port", 8765)))
+
+    def _save_election_settings(self) -> None:
+        payload = {
+            "election_type": self.election_type_combo.currentText().strip(),
+            "constituency": self.constituency_edit.text().strip(),
+            "state": self.state_edit.text().strip(),
+            "server_host": self.server_host_edit.text().strip() or "127.0.0.1",
+            "server_port": int(self.server_port_edit.value()),
+            "approval_host": self.approval_host_edit.text().strip() or "127.0.0.1",
+            "approval_port": int(self.approval_port_edit.value()),
+        }
+        path = save_election_settings(payload)
+        self._election_settings = payload
+        QtWidgets.QMessageBox.information(self, "Saved", f"Election settings saved to {path}")
 
     # --- IPFS / audit tools ------------------------------------------------------
 
@@ -274,17 +346,24 @@ class AdminPanel(QtWidgets.QDialog):
                 r, 1, QtWidgets.QTableWidgetItem(item.get("candidate", ""))
             )
             self.table.setItem(r, 2, QtWidgets.QTableWidgetItem(item.get("symbol", "")))
+            self.table.setItem(r, 3, QtWidgets.QTableWidgetItem(item.get("constituency", "")))
+            election_types = item.get("election_types", [])
+            if isinstance(election_types, str):
+                election_types_text = election_types
+            else:
+                election_types_text = ", ".join(election_types) if election_types else ""
+            self.table.setItem(r, 4, QtWidgets.QTableWidgetItem(election_types_text))
             self.table.setItem(
-                r, 3, QtWidgets.QTableWidgetItem(item.get("image_path", ""))
+                r, 5, QtWidgets.QTableWidgetItem(item.get("image_path", ""))
             )
             self.table.setItem(
-                r, 4, QtWidgets.QTableWidgetItem(item.get("logo_path", ""))
+                r, 6, QtWidgets.QTableWidgetItem(item.get("logo_path", ""))
             )
             enabled_item = QtWidgets.QTableWidgetItem(
                 "Yes" if item.get("enabled", True) else "No"
             )
             enabled_item.setFlags(enabled_item.flags() ^ QtCore.Qt.ItemIsEditable)
-            self.table.setItem(r, 5, enabled_item)
+            self.table.setItem(r, 7, enabled_item)
 
     def _add_entry(self):
         dlg = CandidateEditDialog(self)
@@ -458,6 +537,13 @@ class CandidateEditDialog(QtWidgets.QDialog):
         self.party_edit = QtWidgets.QLineEdit(self._item.get("party", ""))
         self.candidate_edit = QtWidgets.QLineEdit(self._item.get("candidate", ""))
         self.symbol_edit = QtWidgets.QLineEdit(self._item.get("symbol", ""))
+        self.constituency_edit = QtWidgets.QLineEdit(self._item.get("constituency", ""))
+        self.election_types_edit = QtWidgets.QLineEdit(
+            ", ".join(self._item.get("election_types", []))
+            if isinstance(self._item.get("election_types", []), list)
+            else str(self._item.get("election_types", ""))
+        )
+        self.election_types_edit.setPlaceholderText("Comma-separated election types")
         self.image_edit = QtWidgets.QLineEdit(self._item.get("image_path", ""))
         self.logo_edit = QtWidgets.QLineEdit(self._item.get("logo_path", ""))
         self.enabled_check = QtWidgets.QCheckBox("Enabled")
@@ -472,6 +558,8 @@ class CandidateEditDialog(QtWidgets.QDialog):
         form.addRow("Party", self.party_edit)
         form.addRow("Candidate", self.candidate_edit)
         form.addRow("Symbol", self.symbol_edit)
+        form.addRow("Constituency", self.constituency_edit)
+        form.addRow("Election Types", self.election_types_edit)
         img_row = QtWidgets.QHBoxLayout()
         img_row.addWidget(self.image_edit)
         img_row.addWidget(btn_img)
@@ -509,10 +597,13 @@ class CandidateEditDialog(QtWidgets.QDialog):
             target_edit.setText(fp)
 
     def result_item(self) -> Dict:
+        election_types = [item.strip() for item in self.election_types_edit.text().split(",") if item.strip()]
         return {
             "party": self.party_edit.text().strip(),
             "candidate": self.candidate_edit.text().strip(),
             "symbol": self.symbol_edit.text().strip(),
+            "constituency": self.constituency_edit.text().strip(),
+            "election_types": election_types,
             "image_path": self.image_edit.text().strip(),
             "logo_path": self.logo_edit.text().strip(),
             "enabled": self.enabled_check.isChecked(),

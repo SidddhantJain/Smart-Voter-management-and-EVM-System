@@ -191,6 +191,25 @@ This README is structured for direct reuse in academic writing:
 
 ---
 
+## Webcam Face Checker
+
+If you want the live camera checker and LBPH face recognizer, install the camera extras first:
+
+```powershell
+python -m pip install -r requirements-base.txt
+python -m pip install -r requirements-camera.txt
+```
+
+The webcam checker loads the saved model from `voteguard/demo/models/face_recognizer.xml` and reuses it on later runs. Retraining is skipped automatically unless you pass `--force-retrain` to the trainer.
+
+Run the app with:
+
+```powershell
+python scripts/webcam_face_checker.py --expected-label siddhat
+```
+
+If `pytest` or `cv2` is missing, install the requirements above in the active virtual environment before running tests or the camera app.
+
 Quick Start (Prototype, Windows):
 
 ```powershell
