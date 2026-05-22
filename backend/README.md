@@ -16,7 +16,7 @@ python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 
 ## Database
 
-Set `DATABASE_URL` to a PostgreSQL URL such as `postgresql+psycopg2://user:pass@localhost:5432/voteguard`.
+Set `DATABASE_URL` to a PostgreSQL URL such as `postgresql+psycopg://user:pass@localhost:5432/voteguard`.
 If `DATABASE_URL` is not set, the app falls back to a local SQLite file for development.
 
 ## Migrations
