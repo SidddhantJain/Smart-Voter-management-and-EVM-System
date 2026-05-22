@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.db import init_db
 from backend.core.config import get_config
+from backend.core.bootstrap import ensure_superadmin
 from backend.modules.analytics.router import router as analytics_router
 from backend.modules.auth.router import router as auth_router
 from backend.modules.constituencies.router import router as constituencies_router
@@ -33,6 +34,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup() -> None:
     init_db()
+    ensure_superadmin()
 
 
 app.include_router(auth_router, prefix=config.api_prefix)

@@ -31,7 +31,7 @@ def login(payload: LoginRequest) -> dict:
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token(subject=user.id)
-    return {"status": "ok", "access_token": token, "token_type": "bearer", "email": user.email}
+    return {"status": "ok", "access_token": token, "token_type": "bearer", "email": user.email, "role": user.role}
 
 
 @router.post("/register")
@@ -46,11 +46,13 @@ def register(payload: RegisterRequest) -> dict:
     existing = db.query(User).filter(User.email == payload.email).one_or_none()
     if existing is not None:
         raise HTTPException(status_code=409, detail="User already exists")
+    if payload.role == "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin accounts are provisioned automatically")
     user = User(email=payload.email, hashed_password=hash_password(payload.password), role=payload.role)
     db.add(user)
     db.commit()
     token = create_access_token(subject=user.id)
-    return {"status": "created", "access_token": token, "token_type": "bearer", "email": user.email}
+    return {"status": "created", "access_token": token, "token_type": "bearer", "email": user.email, "role": user.role}
 
 
 @router.post("/refresh")
