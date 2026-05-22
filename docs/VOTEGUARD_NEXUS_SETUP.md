@@ -62,12 +62,11 @@ This repository is currently a Python-first prototype. The VoteGuard Nexus promp
 - XGBoost
 - PyTorch (optional)
 
-### DevOps
+### DevOps / Deployment
 
-- Docker
-- Docker Compose
-- Nginx
 - GitHub Actions
+- Nginx
+- Docker and Docker Compose are optional and deferred on this laptop.
 
 ## Python Packages Already Referenced By This Repo
 
@@ -94,7 +93,7 @@ This repository is currently a Python-first prototype. The VoteGuard Nexus promp
 4. Install camera or ML extras only if you need the webcam or analytics demos.
 5. Install Node.js only when the Next.js frontend is added.
 6. Install PostgreSQL, Redis, and Neo4j when the backend services are actually introduced.
-7. Use Docker and Docker Compose for local orchestration once the modular-monolith backend is scaffolded.
+7. Skip Docker and Docker Compose on this laptop; use them later only on hardware that supports them reliably.
 
 ## How This Prompt Maps To The Current Repo
 
