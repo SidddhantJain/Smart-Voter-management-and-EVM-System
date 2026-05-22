@@ -11,6 +11,11 @@ class AppConfig:
     api_prefix: str = "/api/v1"
     host: str = os.getenv("VOTEGUARD_BACKEND_HOST", "127.0.0.1")
     port: int = int(os.getenv("VOTEGUARD_BACKEND_PORT", "8000"))
+    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./voteguard_nexus.db")
+    database_backend: str = os.getenv("DATABASE_BACKEND", "sqlite")
+    postgis_enabled: bool = os.getenv("POSTGIS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+    postgis_srid: int = int(os.getenv("POSTGIS_SRID", "4326"))
+    geojson_support: bool = os.getenv("GEOJSON_SUPPORT", "true").lower() in {"1", "true", "yes", "on"}
 
 
 def get_config() -> AppConfig:

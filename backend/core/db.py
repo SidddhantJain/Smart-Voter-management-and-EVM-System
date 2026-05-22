@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./voteguard_nexus.db")
+from backend.core.config import get_config
+
+
+config = get_config()
+DATABASE_URL = config.database_url
+DATABASE_BACKEND = config.database_backend
+POSTGIS_ENABLED = config.postgis_enabled
+POSTGIS_SRID = config.postgis_srid
+GEOJSON_SUPPORT = config.geojson_support
 
 engine_kwargs = {"future": True}
 if DATABASE_URL.startswith("sqlite"):
@@ -28,4 +35,5 @@ def init_db() -> None:
     from backend.core.models import Base
 
     Base.metadata.create_all(bind=engine)
+
 

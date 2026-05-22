@@ -28,6 +28,16 @@ alembic upgrade head
 
 Alembic uses the same `DATABASE_URL`, so switching from SQLite to PostgreSQL is just an environment change.
 
+## Database Helper
+
+```powershell
+python -m backend.manage_db upgrade
+python -m backend.manage_db reset
+python -m backend.manage_db current
+```
+
+Use `reset` to downgrade the schema to base and recreate it in one command.
+
 ## Included Modules
 
 - `auth`
