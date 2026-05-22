@@ -8,13 +8,16 @@ from typing import Any, Dict
 from .env import data_dir
 
 
+DEFAULT_SERVER_HOST = "192.168.137.1"
+
+
 DEFAULT_ELECTION_SETTINGS: Dict[str, Any] = {
     "election_type": "Vidhan Sabha",
     "constituency": "",
     "state": "",
-    "server_host": "127.0.0.1",
+    "server_host": DEFAULT_SERVER_HOST,
     "server_port": 8785,
-    "approval_host": "127.0.0.1",
+    "approval_host": DEFAULT_SERVER_HOST,
     "approval_port": 8765,
 }
 
@@ -33,6 +36,10 @@ def load_election_settings() -> Dict[str, Any]:
             return deepcopy(DEFAULT_ELECTION_SETTINGS)
         merged = deepcopy(DEFAULT_ELECTION_SETTINGS)
         merged.update(raw)
+        if str(merged.get("server_host", "")).strip() in {"", "127.0.0.1", "localhost", "::1"}:
+            merged["server_host"] = DEFAULT_SERVER_HOST
+        if str(merged.get("approval_host", "")).strip() in {"", "127.0.0.1", "localhost", "::1"}:
+            merged["approval_host"] = DEFAULT_SERVER_HOST
         return merged
     except Exception:
         return deepcopy(DEFAULT_ELECTION_SETTINGS)

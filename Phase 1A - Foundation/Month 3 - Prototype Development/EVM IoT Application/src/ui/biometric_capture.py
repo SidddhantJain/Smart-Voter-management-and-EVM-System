@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressDialog,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -115,7 +116,6 @@ class BiometricCaptureScreen(QWidget):
         # show an iris/eye preview after capture.
         self.last_frame = None
         self.thumb_fingerprint_paths = self._collect_thumb_fingerprint_images()
-        self.retina_image_paths = self._collect_retina_images()
         self.init_ui()
 
     def init_ui(self):
@@ -143,7 +143,7 @@ class BiometricCaptureScreen(QWidget):
         layout.addWidget(self.camera_label)
 
         # Retina preview area (shows grayscale eye region after capture)
-        self.iris_label = QLabel("Retina image will appear here after capture.")
+        self.iris_label = QLabel("Iris image will appear here after capture.")
         self.iris_label.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
         self.iris_label.setMinimumHeight(140)
         layout.addWidget(self.iris_label)
@@ -350,23 +350,6 @@ class BiometricCaptureScreen(QWidget):
             thumb_paths.append(path)
         return thumb_paths
 
-    def _collect_retina_images(self):
-        """Collect grayscale retina/eye images from the retena dataset."""
-
-        repo_root = self._find_repo_root()
-        retina_root = repo_root / "retena" / "images_mono"
-        if not retina_root.exists():
-            return []
-
-        retina_paths = []
-        for path in retina_root.rglob("*"):
-            if not path.is_file():
-                continue
-            if path.suffix.lower() not in {".bmp", ".png", ".jpg", ".jpeg"}:
-                continue
-            retina_paths.append(path)
-        return retina_paths
-
     def _show_fingerprint_preview(self, image_path: Path):
         """Render a fingerprint image in the preview label."""
 
@@ -389,29 +372,6 @@ class BiometricCaptureScreen(QWidget):
         if not self.thumb_fingerprint_paths:
             return None
         return random.choice(self.thumb_fingerprint_paths)
-
-    def _pick_random_retina_image(self):
-        if not self.retina_image_paths:
-            return None
-        return random.choice(self.retina_image_paths)
-
-    def _show_retina_preview(self, image_path: Path):
-        """Render a grayscale retina image in the preview label."""
-
-        pixmap = QPixmap(str(image_path))
-        if pixmap.isNull():
-            self.iris_label.setText("Unable to load retina image.")
-            self.iris_label.setPixmap(QPixmap())
-            return
-
-        scaled = pixmap.scaled(
-            self.iris_label.width() or 320,
-            self.iris_label.height() or 140,
-            Qt.KeepAspectRatio,
-            Qt.SmoothTransformation,
-        )
-        self.iris_label.setPixmap(scaled)
-        self.iris_label.setText("")
 
     def start_camera(self):
         if cv2 is None:
@@ -825,17 +785,19 @@ class BiometricCaptureScreen(QWidget):
                 pass
 
         server_response = self._submit_verification_to_server(real, all_simulated)
-        if server_response and server_response.get("status") == "rejected":
-            reason = server_response.get("rejection_reason") or "The server rejected this verification request."
-            QMessageBox.warning(
+        if not server_response:
+            return
+        if server_response.get("status") == "error":
+            return
+        if server_response.get("status") != "approved":
+            reason = server_response.get("rejection_reason") or server_response.get("reason") or "The server has not approved this verification request yet."
+            QMessageBox.information(
                 self,
-                "Verification Rejected",
-                f"Server approval failed.\n\nReason: {reason}",
+                "Verification Pending",
+                f"The screen will not proceed until the server grants approval.\n\n{reason}",
             )
             return
-        if server_response and server_response.get("status") == "error":
-            return
-        if server_response and server_response.get("status") == "approved":
+        if server_response.get("status") == "approved":
             ack_lines = [
                 f"{item.get('stage')}: {item.get('message')}"
                 for item in server_response.get("ack_sequence", [])
@@ -845,7 +807,7 @@ class BiometricCaptureScreen(QWidget):
                     self,
                     "Server Approved",
                     "\n".join([
-                        "Verification approved by the server.",
+                        "Approval granted by the server.",
                         "",
                         *ack_lines,
                     ]),
@@ -913,24 +875,30 @@ class BiometricCaptureScreen(QWidget):
         )
 
     def capture_retina(self):
-        retina_image = self._pick_random_retina_image()
-        if retina_image is None:
+        frame = None
+        if cv2 is not None and self.camera is not None and self.camera.isOpened():
+            ok, camera_frame = self.camera.read()
+            if ok and camera_frame is not None:
+                self.last_frame = camera_frame
+                frame = camera_frame
+
+        if frame is None:
             QMessageBox.warning(
                 self,
-                "Retina Archive Missing",
-                "No grayscale retina images were found in retena/images_mono.",
+                "Iris Capture Unavailable",
+                "The camera could not supply an iris frame. Please check the webcam and try again.",
             )
-            self.simulate_biometric(input_type="Retina")
+            self.simulate_biometric(input_type="Iris")
             return
 
-        self._show_retina_preview(retina_image)
+        self._show_iris_preview()
         self.simulation_mode = False
         QMessageBox.information(
             self,
-            "Retina Captured",
-            "Retina image captured successfully.",
+            "Iris Captured",
+            "Iris image captured successfully from the webcam.",
         )
-        print(f"[RETINA] Retina image submitted: {retina_image}")
+        print("[IRIS] Iris image captured from webcam.")
         self.audit.log(
             "BIOMETRIC_COMPLETED",
             {
@@ -941,9 +909,8 @@ class BiometricCaptureScreen(QWidget):
                 or (self.camera is None)
                 or (not self.camera.isOpened()),
                 "simulated": False,
-                "modality": "retina",
-                "dataset": "retena/images_mono",
-                "image": str(retina_image),
+                "modality": "iris",
+                "source": "camera",
             },
         )
         return
@@ -985,7 +952,37 @@ class BiometricCaptureScreen(QWidget):
 
         try:
             client = VerificationClient(host=host, port=port)
-            return client.submit(payload)
+            initial_response = client.submit(payload)
+            request_id = str(initial_response.get("request_id", "")).strip()
+            if initial_response.get("status") != "pending" or not request_id:
+                return initial_response
+
+            progress = QProgressDialog(
+                "Waiting for manual server approval...",
+                None,
+                0,
+                0,
+                self,
+            )
+            progress.setWindowTitle("Verification Pending")
+            progress.setWindowModality(Qt.ApplicationModal)
+            progress.setCancelButton(None)
+            progress.setMinimumDuration(0)
+            progress.show()
+            try:
+                import time
+
+                deadline = time.time() + 3600.0
+                final_response = initial_response
+                while time.time() < deadline:
+                    QApplication.processEvents()
+                    final_response = client.status(request_id)
+                    if final_response.get("status") in {"approved", "rejected"}:
+                        return final_response
+                    time.sleep(1.0)
+                return final_response
+            finally:
+                progress.close()
         except Exception as exc:
             QMessageBox.critical(
                 self,

@@ -210,6 +210,10 @@ python scripts/webcam_face_checker.py --expected-label siddhat
 
 If `pytest` or `cv2` is missing, install the requirements above in the active virtual environment before running tests or the camera app.
 
+## VoteGuard Nexus Roadmap
+
+If you are adopting the broader VoteGuard Nexus architecture prompt, start with the setup and dependency checklist in [docs/VOTEGUARD_NEXUS_SETUP.md](docs/VOTEGUARD_NEXUS_SETUP.md). That document lists the software stack and shows how the current prototype maps to the target modular-monolith design.
+
 Quick Start (Prototype, Windows):
 
 ```powershell
