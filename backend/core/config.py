@@ -16,6 +16,9 @@ class AppConfig:
     postgis_enabled: bool = os.getenv("POSTGIS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
     postgis_srid: int = int(os.getenv("POSTGIS_SRID", "4326"))
     geojson_support: bool = os.getenv("GEOJSON_SUPPORT", "true").lower() in {"1", "true", "yes", "on"}
+    jwt_secret: str = os.getenv("JWT_SECRET", "change-this-secret-in-prod")
+    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
+    jwt_access_token_expires_seconds: int = int(os.getenv("JWT_ACCESS_EXPIRES", str(60 * 60)))
 
 
 def get_config() -> AppConfig:

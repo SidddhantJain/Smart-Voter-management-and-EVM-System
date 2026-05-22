@@ -93,6 +93,8 @@ export default function Page() {
             >
               Open API docs
             </a>
+            <a href="/login" className="rounded-full border border-white/15 px-5 py-3 font-medium text-slate-100 transition hover:bg-white/5">Login</a>
+            <a href="/register" className="rounded-full border border-white/15 px-5 py-3 font-medium text-slate-100 transition hover:bg-white/5">Register</a>
           </div>
 
           {health && (

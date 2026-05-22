@@ -5,6 +5,10 @@ pyqtgraph==0.13.3
 # Dev/test tooling (Windows-safe; no compilation required)
 pytest==7.4.4
 
+# Authentication utilities
+passlib[bcrypt]>=1.7.4
+PyJWT>=2.8.0
+
 # Notes:
 # - NumPy and OpenCV are optional due to Windows wheels variability across Python versions.
 # - For camera overlays, install requirements-camera.txt.
