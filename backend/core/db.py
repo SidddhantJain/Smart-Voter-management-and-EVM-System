@@ -28,3 +28,4 @@ def init_db() -> None:
     from backend.core.models import Base
 
     Base.metadata.create_all(bind=engine)
+

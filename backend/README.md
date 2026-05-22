@@ -19,6 +19,15 @@ python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 Set `DATABASE_URL` to a PostgreSQL URL such as `postgresql+psycopg2://user:pass@localhost:5432/voteguard`.
 If `DATABASE_URL` is not set, the app falls back to a local SQLite file for development.
 
+## Migrations
+
+```powershell
+cd backend
+alembic upgrade head
+```
+
+Alembic uses the same `DATABASE_URL`, so switching from SQLite to PostgreSQL is just an environment change.
+
 ## Included Modules
 
 - `auth`
