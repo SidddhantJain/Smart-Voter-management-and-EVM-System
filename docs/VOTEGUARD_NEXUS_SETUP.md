@@ -105,6 +105,40 @@ The best fit for this repository is to evolve it in stages:
 4. Introduce optional graph, GIS, and AI modules behind clean interfaces.
 5. Keep the current prototype runnable while the Nexus modules are added.
 
+## Development And Implementation Integration With The System
+
+The implementation should not replace the current prototype in one step. It should integrate with the system incrementally so the app remains usable at every stage.
+
+### Integration Order
+
+1. Keep the existing PyQt voter flow, camera flow, and server approval flow as the stable baseline.
+2. Add a FastAPI backend alongside the current Python prototype instead of moving everything at once.
+3. Route new voter, constituency, graph, and analytics features through backend service interfaces.
+4. Expose the new backend through the existing admin and operator workflows first.
+5. Move the browser-based dashboard and analytical views to Next.js after the backend APIs are stable.
+6. Add AI, GIS, and graph services as plug-in style modules so they can be developed independently.
+
+### Current-System Integration Points
+
+- `run_app.py` remains the primary launcher for the current prototype and can be extended to launch new modules.
+- `server/` remains the approval and verification gateway for operator workflows.
+- `voteguard/config/` remains the shared settings layer for host, port, and election configuration.
+- `scripts/` remains the operational tooling area for training, camera checks, and data preparation.
+- `docs/` remains the place where architecture, setup, and migration steps are recorded.
+
+### Practical Development Phases
+
+1. Stabilize the current prototype and manual approval workflow.
+2. Scaffold `backend/modules/auth`, `backend/modules/voters`, and `backend/modules/governance`.
+3. Add database models and API schemas for voter and constituency data.
+4. Add graph and GIS endpoints behind read-only APIs.
+5. Add AI fraud scoring after the data model is stable.
+6. Build the Next.js dashboards once the backend APIs stop changing frequently.
+
+### Compatibility Rule
+
+The current system must continue to run even while Nexus modules are being added. New code should be optional until it is fully wired into the existing launchers and tested.
+
 ## Notes
 
 - This document is the installation and architecture checkpoint for the new advanced prototype branch.

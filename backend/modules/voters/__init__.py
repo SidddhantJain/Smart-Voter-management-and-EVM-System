@@ -1,0 +1,1 @@
+"""Voter management module."""

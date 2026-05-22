@@ -1,0 +1,1 @@
+"""VoteGuard Nexus backend package."""
