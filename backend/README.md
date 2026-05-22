@@ -14,10 +14,18 @@ python -m pip install -r backend/requirements.txt
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+## Database
+
+Set `DATABASE_URL` to a PostgreSQL URL such as `postgresql+psycopg2://user:pass@localhost:5432/voteguard`.
+If `DATABASE_URL` is not set, the app falls back to a local SQLite file for development.
+
 ## Included Modules
 
 - `auth`
 - `voters`
+- `constituencies`
+- `graph`
+- `analytics`
 - `governance`
 
 These are scaffold endpoints only and are intended to be expanded into the full Nexus backend.
