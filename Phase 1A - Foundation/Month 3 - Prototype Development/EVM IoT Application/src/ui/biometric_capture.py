@@ -4,7 +4,7 @@ Language: Python (PyQt5)
 Handles: fingerprint, iris/retina, and face capture.
 
 This screen now exposes a *single* primary button –
-"Capture All Biometrics" – which is responsible for:
+"Submit All Biometrics" – which is responsible for:
 - fingerprint capture
 - iris/retina capture (e.g. MIS100V2 sensor)
 - face capture via the live camera feed
@@ -14,7 +14,10 @@ simulation so the rest of the flow (including tests) continues to work.
 """
 
 import os
+import random
+import subprocess
 import sys
+from pathlib import Path
 
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -26,6 +29,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressDialog,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -41,7 +45,7 @@ try:
     import numpy as np  # optional
 except Exception:
     np = None
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 
 try:
     import serial  # optional
@@ -49,7 +53,9 @@ except Exception:
     serial = None
 from voteguard.adapters.audit_helper import SafeAuditLogger
 from voteguard.adapters.ml_analytics_optional import analyze, models_loaded
+from voteguard.config.election import load_election_settings
 from voteguard.config.env import enable_camera, overlays_enabled
+import json
 
 # Hardware device manager (fingerprint + iris/retina + camera).
 # Imported lazily in ``capture_all_biometrics`` to keep tests and
@@ -80,6 +86,25 @@ class BiometricCaptureScreen(QWidget):
         # ML overlays enabled by default when overlays are on and camera available
         self.ml_enabled = overlays_enabled() and enable_camera() and (cv2 is not None)
         self.audit = SafeAuditLogger()
+        # optional trained recognizer (LBPH) for demo enforcement
+        self._recognizer = None
+        self._recognizer_labels = {}
+        try:
+            if cv2 is not None:
+                model_path = Path(__file__).resolve().parents[2] / "voteguard" / "demo" / "models" / "face_recognizer.xml"
+                labels_path = model_path.with_name("labels.json")
+                if model_path.exists() and labels_path.exists():
+                    try:
+                        self._recognizer = cv2.face.LBPHFaceRecognizer_create()
+                        self._recognizer.read(str(model_path))
+                        with labels_path.open("r", encoding="utf-8") as fh:
+                            self._recognizer_labels = json.load(fh)
+                    except Exception:
+                        self._recognizer = None
+                        self._recognizer_labels = {}
+        except Exception:
+            self._recognizer = None
+            self._recognizer_labels = {}
         # Overrides for ML overlays
         self.override_enabled = False
         self.override_gender = None  # "Male"|"Female"|None
@@ -90,6 +115,7 @@ class BiometricCaptureScreen(QWidget):
         # Keep a copy of the latest camera frame so we can
         # show an iris/eye preview after capture.
         self.last_frame = None
+        self.thumb_fingerprint_paths = self._collect_thumb_fingerprint_images()
         self.init_ui()
 
     def init_ui(self):
@@ -116,11 +142,19 @@ class BiometricCaptureScreen(QWidget):
         self.camera_label = QLabel()
         layout.addWidget(self.camera_label)
 
-        # Iris preview area (shows cropped eye region after capture)
+        # Retina preview area (shows grayscale eye region after capture)
         self.iris_label = QLabel("Iris image will appear here after capture.")
         self.iris_label.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
         self.iris_label.setMinimumHeight(140)
         layout.addWidget(self.iris_label)
+
+        # Fingerprint preview area (thumb-only archive images)
+        self.fingerprint_label = QLabel(
+            "Thumb fingerprint image will appear here after capture."
+        )
+        self.fingerprint_label.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+        self.fingerprint_label.setMinimumHeight(140)
+        layout.addWidget(self.fingerprint_label)
 
         # Privacy banner (shown only when ML overlays active)
         self.privacy_banner = QLabel("Optional local analytics overlay. Not stored.")
@@ -187,7 +221,7 @@ class BiometricCaptureScreen(QWidget):
         self.overlay_status_timer.start(500)
 
         # Controls for capturing biometrics
-        self.capture_all_button = QPushButton("Capture All Biometrics")
+        self.capture_all_button = QPushButton("Submit All Biometrics")
         self.capture_all_button.clicked.connect(self.capture_all_biometrics)
 
         # Optional: separate buttons per modality for diagnostics
@@ -204,6 +238,12 @@ class BiometricCaptureScreen(QWidget):
         layout.addWidget(self.capture_fingerprint_button)
         layout.addWidget(self.capture_iris_button)
         layout.addWidget(self.capture_face_button)
+
+        self.open_webcam_checker_button = QPushButton("Open Webcam Face Checker")
+        self.open_webcam_checker_button.clicked.connect(
+            self.launch_webcam_face_checker
+        )
+        layout.addWidget(self.open_webcam_checker_button)
 
         self.setLayout(layout)
 
@@ -281,6 +321,57 @@ class BiometricCaptureScreen(QWidget):
             f"Age/Gender: {'Available' if demo_ok else 'Unavailable'}"
         )
         self.model_banner.setText(status_text)
+
+    def _find_repo_root(self) -> Path:
+        """Walk upward until the repository root with `archive/` is found."""
+
+        current = Path(__file__).resolve()
+        for parent in current.parents:
+            if (parent / "archive").exists():
+                return parent
+        return current.parents[5]
+
+    def _collect_thumb_fingerprint_images(self):
+        """Collect archive images whose filenames indicate a thumb fingerprint."""
+
+        repo_root = self._find_repo_root()
+        archive_root = repo_root / "archive"
+        if not archive_root.exists():
+            return []
+
+        thumb_paths = []
+        for path in archive_root.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in {".bmp", ".png", ".jpg", ".jpeg"}:
+                continue
+            if "thumb" not in path.name.lower():
+                continue
+            thumb_paths.append(path)
+        return thumb_paths
+
+    def _show_fingerprint_preview(self, image_path: Path):
+        """Render a fingerprint image in the preview label."""
+
+        pixmap = QPixmap(str(image_path))
+        if pixmap.isNull():
+            self.fingerprint_label.setText("Unable to load thumb fingerprint image.")
+            self.fingerprint_label.setPixmap(QPixmap())
+            return
+
+        scaled = pixmap.scaled(
+            self.fingerprint_label.width() or 320,
+            self.fingerprint_label.height() or 140,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.fingerprint_label.setPixmap(scaled)
+        self.fingerprint_label.setText("")
+
+    def _pick_random_thumb_fingerprint(self):
+        if not self.thumb_fingerprint_paths:
+            return None
+        return random.choice(self.thumb_fingerprint_paths)
 
     def start_camera(self):
         if cv2 is None:
@@ -446,6 +537,35 @@ class BiometricCaptureScreen(QWidget):
                         cv2.rectangle(
                             annotated, (x, y), (x + w0, y + h0), (0, 255, 0), 2
                         )
+                        # If recognizer present, attempt to recognize the face
+                        try:
+                            if self._recognizer is not None:
+                                face_img = gray_frame[y : y + h0, x : x + w0]
+                                # ensure non-empty crop
+                                if face_img.size > 0:
+                                    face_small = cv2.resize(face_img, (200, 200))
+                                    label_id, conf = self._recognizer.predict(face_small)
+                                    name = (
+                                        self._recognizer_labels.get(str(label_id))
+                                        or self._recognizer_labels.get(label_id)
+                                    )
+                                    # show recognition in model banner
+                                    try:
+                                        self.model_banner.setText(
+                                            f"Models — Recognized: {name or 'Unknown'} (conf={conf:.1f})"
+                                        )
+                                    except Exception:
+                                        pass
+                                    # If confidence is large (poor match), mark as blocked
+                                    try:
+                                        if conf > 80:
+                                            self.overlay_status_label.setText("Overlays: Blocked")
+                                        else:
+                                            self.overlay_status_label.setText("Overlays: On")
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
@@ -529,11 +649,11 @@ class BiometricCaptureScreen(QWidget):
         iris_region = frame[y0:y1, x0:x1]
 
         try:
-            iris_rgb = cv2.cvtColor(iris_region, cv2.COLOR_BGR2RGB)
-            ih, iw, ch = iris_rgb.shape
-            bytes_per_line = ch * iw
+            iris_gray = cv2.cvtColor(iris_region, cv2.COLOR_BGR2GRAY)
+            ih, iw = iris_gray.shape
+            bytes_per_line = iw
             qimg = QImage(
-                iris_rgb.data, iw, ih, bytes_per_line, QImage.Format_RGB888
+                iris_gray.data, iw, ih, bytes_per_line, QImage.Format_Grayscale8
             )
             pix = QPixmap.fromImage(qimg)
             self.iris_label.setPixmap(pix)
@@ -663,6 +783,35 @@ class BiometricCaptureScreen(QWidget):
                 )
             except Exception:
                 pass
+
+        server_response = self._submit_verification_to_server(real, all_simulated)
+        if not server_response:
+            return
+        if server_response.get("status") == "error":
+            return
+        if server_response.get("status") != "approved":
+            reason = server_response.get("rejection_reason") or server_response.get("reason") or "The server has not approved this verification request yet."
+            QMessageBox.information(
+                self,
+                "Verification Pending",
+                f"The screen will not proceed until the server grants approval.\n\n{reason}",
+            )
+            return
+        if server_response.get("status") == "approved":
+            ack_lines = [
+                f"{item.get('stage')}: {item.get('message')}"
+                for item in server_response.get("ack_sequence", [])
+            ]
+            if ack_lines:
+                QMessageBox.information(
+                    self,
+                    "Server Approved",
+                    "\n".join([
+                        "Approval granted by the server.",
+                        "",
+                        *ack_lines,
+                    ]),
+                )
         # Show iris/eye preview from the latest camera frame (if any).
         self._show_iris_preview()
 
@@ -671,7 +820,39 @@ class BiometricCaptureScreen(QWidget):
         QTimer.singleShot(1500, self._proceed_to_voting)
 
     def capture_fingerprint(self):
-        self.simulate_biometric(input_type="Fingerprint")
+        thumb_image = self._pick_random_thumb_fingerprint()
+        if thumb_image is None:
+            QMessageBox.warning(
+                self,
+                "Fingerprint Archive Missing",
+                "No thumb fingerprint images were found in the archive folder.",
+            )
+            self.simulate_biometric(input_type="Fingerprint")
+            return
+
+        self._show_fingerprint_preview(thumb_image)
+        self.simulation_mode = False
+        QMessageBox.information(
+            self,
+            "Fingerprint Captured",
+            "Thumb fingerprint captured successfully.",
+        )
+        print(f"[FINGERPRINT] Thumb fingerprint submitted: {thumb_image}")
+        self.audit.log(
+            "BIOMETRIC_COMPLETED",
+            {
+                "session_id": getattr(
+                    self.stacked_widget, "session_id", self.session_id
+                ),
+                "camera_missing": (cv2 is None)
+                or (self.camera is None)
+                or (not self.camera.isOpened()),
+                "simulated": False,
+                "modality": "fingerprint",
+                "dataset": "archive/thumb-only",
+                "image": str(thumb_image),
+            },
+        )
         return
 
     def simulate_biometric(self, input_type="Biometric"):
@@ -694,27 +875,167 @@ class BiometricCaptureScreen(QWidget):
         )
 
     def capture_retina(self):
-        self.simulate_biometric(input_type="Retina")
+        frame = None
+        if cv2 is not None and self.camera is not None and self.camera.isOpened():
+            ok, camera_frame = self.camera.read()
+            if ok and camera_frame is not None:
+                self.last_frame = camera_frame
+                frame = camera_frame
+
+        if frame is None:
+            QMessageBox.warning(
+                self,
+                "Iris Capture Unavailable",
+                "The camera could not supply an iris frame. Please check the webcam and try again.",
+            )
+            self.simulate_biometric(input_type="Iris")
+            return
+
+        self._show_iris_preview()
+        self.simulation_mode = False
+        QMessageBox.information(
+            self,
+            "Iris Captured",
+            "Iris image captured successfully from the webcam.",
+        )
+        print("[IRIS] Iris image captured from webcam.")
+        self.audit.log(
+            "BIOMETRIC_COMPLETED",
+            {
+                "session_id": getattr(
+                    self.stacked_widget, "session_id", self.session_id
+                ),
+                "camera_missing": (cv2 is None)
+                or (self.camera is None)
+                or (not self.camera.isOpened()),
+                "simulated": False,
+                "modality": "iris",
+                "source": "camera",
+            },
+        )
         return
 
     def capture_face(self):
         # Kept for backward compatibility; delegate to the unified handler.
         self.capture_all_biometrics()
 
+    def _submit_verification_to_server(self, real: dict, all_simulated: bool):
+        """Send the capture packet to the approval server if configured."""
+
+        settings = load_election_settings()
+        host = str(settings.get("server_host", "")).strip()
+        port = int(settings.get("server_port", 8785) or 8785)
+        if not host:
+            return {"status": "skipped", "reason": "server host not configured"}
+
+        try:
+            from server.verification_client import VerificationClient
+        except Exception as exc:
+            QMessageBox.warning(self, "Verification Server", f"Server client unavailable: {exc}")
+            return {"status": "error", "error": str(exc)}
+
+        aadhaar_id, voter_id = getattr(
+            self.stacked_widget, "current_voter_ids", (None, None)
+        )
+        payload = {
+            "session_id": getattr(self.stacked_widget, "session_id", self.session_id) or "",
+            "aadhaar_id": aadhaar_id or "",
+            "voter_id": voter_id or "",
+            "constituency": settings.get("constituency", ""),
+            "election_type": settings.get("election_type", "Vidhan Sabha"),
+            "biometric_ok": bool(real.get("fingerprint") or real.get("iris")),
+            "face_ok": bool(real.get("face")),
+            "device_connected": not all_simulated,
+            "camera_ready": bool((cv2 is not None) and (self.camera is not None) and self.camera.isOpened()),
+            "biometric_sensor_ready": bool(real.get("fingerprint") or real.get("iris")),
+        }
+
+        try:
+            client = VerificationClient(host=host, port=port)
+            initial_response = client.submit(payload)
+            request_id = str(initial_response.get("request_id", "")).strip()
+            if initial_response.get("status") != "pending" or not request_id:
+                return initial_response
+
+            progress = QProgressDialog(
+                "Waiting for manual server approval...",
+                None,
+                0,
+                0,
+                self,
+            )
+            progress.setWindowTitle("Verification Pending")
+            progress.setWindowModality(Qt.ApplicationModal)
+            progress.setCancelButton(None)
+            progress.setMinimumDuration(0)
+            progress.show()
+            try:
+                import time
+
+                deadline = time.time() + 3600.0
+                final_response = initial_response
+                while time.time() < deadline:
+                    QApplication.processEvents()
+                    final_response = client.status(request_id)
+                    if final_response.get("status") in {"approved", "rejected"}:
+                        return final_response
+                    time.sleep(1.0)
+                return final_response
+            finally:
+                progress.close()
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Verification Failed",
+                f"Could not reach the approval server at {host}:{port}.\n\n{exc}",
+            )
+            return {"status": "error", "error": str(exc)}
+
+    def launch_webcam_face_checker(self):
+        """Launch the standalone webcam face checker from the biometric UI."""
+
+        checker_script = Path(__file__).resolve().parents[5] / "scripts" / "webcam_face_checker.py"
+        if not checker_script.exists():
+            QMessageBox.critical(
+                self,
+                "Checker Missing",
+                f"Could not find webcam checker at: {checker_script}",
+            )
+            return
+
+        try:
+            subprocess.Popen(
+                [sys.executable, str(checker_script), "--expected-label", "siddhat"],
+                cwd=str(checker_script.parent.parent),
+            )
+            QMessageBox.information(
+                self,
+                "Webcam Checker",
+                "Webcam face checker started. Switch to that window to see the valid/invalid face box.",
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Launch Failed",
+                f"Failed to start the webcam checker: {exc}",
+            )
+
     def _proceed_to_voting(self):
         """Common transition to the voting screen after biometrics."""
 
         parties = self._load_parties_from_config()
+        election_settings = load_election_settings()
         # Read propagated IDs (from AadhaarEntry)
         aadhaar_id, voter_id = getattr(
             self.stacked_widget, "current_voter_ids", (None, None)
         )
         voting_screen = VotingScreen(
-            "State Assembly",
+            election_settings.get("election_type", "Vidhan Sabha"),
             parties,
             aadhaar_id=aadhaar_id,
             voter_id=voter_id,
             session_id=getattr(self.stacked_widget, "session_id", self.session_id),
+            constituency=election_settings.get("constituency", ""),
         )
         self.stacked_widget.addWidget(voting_screen)
         try:

@@ -40,3 +40,11 @@ models/*.onnx
 # Build artifacts
 build/
 dist/
+
+# Frontend install/build outputs
+frontend/node_modules/
+frontend/.next/
+frontend/.turbo/
+
+# Local backend database
+*.db

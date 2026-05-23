@@ -25,7 +25,17 @@ A structured index to the project’s documentation and diagrams.
 ## Security & Operations
 - `.env.example` — Configuration template
 - `README.md` (root) — Security review, operations, deployment, troubleshooting
+ - `RUN.md` (root) — CLI usage, UI launch, and IPFS/audit tooling quick reference
+- `docs/installation_setup_guide.md` — Step-by-step setup instructions
+- `docs/user_manual.md` — User-facing usage guide
+- `docs/developer_guide.md` — Maintenance and extension guide
+- `docs/configuration_files.md` — Sample configuration and environment setup
+
+## Immutability & IPFS
+- Root `README.md` — "IPFS-Backed Immutability (Prototype)" subsection under Implementation describes how results and audit snapshots are anchored to IPFS and surfaced via the counting UI and admin tools.
 
 ---
 
 If adding new docs, please reference them here to keep the index up-to-date.
+
+- `docs/appendix.md` — Appendix collecting Plagiarism, Publications, Certificates and supplemental docs

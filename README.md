@@ -2,6 +2,11 @@
 
 This document is intentionally written in an academic, research-oriented style to serve as a foundation for a peer-reviewed publication. It articulates the system vision, research motivation, architectural design, security and trust model, accessibility-first constraints, implementation details, evaluation strategy, limitations, and future scope of the Smart Voter Management and EVM System (hereafter, VoteGuard Pro).
 
+## License
+
+This repository is proprietary and all rights are reserved by the copyright holder.
+No permission is granted to use, copy, modify, distribute, or sublicense the code or documentation except with prior written permission.
+
 ## 1. Project Title
 
 VoteGuard Pro: A Security-First, Accessibility-Constrained Prototype for Auditable Electronic Voting with Biometric Sensing and Blockchain-Ready Persistence
@@ -66,6 +71,7 @@ Primary directories are under `Phase 1A - Foundation/Month 3 - Prototype Develop
 - Security (`src/security`): `secure_boot.py` placeholder. Responsibilities: integrity checks and attestation concept.
 - Utils (`src/utils`): `logger.py` for encrypted audit log; other helpers.
 - Scripts: `scripts/demo_camera_detection.py` for camera/overlay demonstration; `docs/vote_blockchain_graph.html` for visualization output.
+ - IPFS Integration (`src/backend/ipfs_client.py`, `src/ui/count_ui.py`, `src/ui/admin_panel.py`, `voteguard/adapters/audit_helper.py`): optional content-addressed anchoring of exported results and audit ledger snapshots to a local IPFS node (e.g., IPFS Desktop), with CIDs recorded in the audit log and surfaced via the counting UI and admin tools.
 
 Rationale: Modularity supports independent security analysis, accessibility evaluation, and performance studies. The storage module isolates cryptographic responsibilities; UI isolates human factors; ML utilities are optional and sandboxed.
 
@@ -118,6 +124,13 @@ Alignment: The design aims toward WCAG-aligned practices (perceptible, operable,
 - Key Algorithms: Face detection via Haar cascades; optional emotion via FER+; age/gender via Caffe or ONNX; temporal smoothing of emotion labels to reduce noise.
 - Storage: Fernet-encrypted JSON ledger; append-only semantics; cast registry for re-vote prevention.
 - Visualization: PyQt-based animated flow demonstrating casting and blockchain pathway; HTML graph for conceptual demonstration.
+
+### IPFS-Backed Immutability (Prototype)
+
+- IPFS Node: A local IPFS node (e.g., IPFS Desktop) exposes an HTTP API on `127.0.0.1:5001` and a gateway on `127.0.0.1:8080`.
+- Results Export: When the counting UI exports results to JSON, the file is (optionally) added to IPFS via `backend.ipfs_client.add_file`, and the returned CID is logged into the hash-chained audit ledger (`SafeAuditLogger` events such as `RESULTS_EXPORTED`).
+- Audit Snapshots: At the same key moments, the entire `audit_ledger.json` is snapshotted to IPFS and its CID is recorded as a dedicated audit event, providing a tamper-evident, content-addressed snapshot of the full operational log.
+- Admin Tools: The admin panel exposes convenience actions to (i) list the most recent IPFS CIDs found in audit records and (ii) verify that a given CID's content matches the current `results.json` or `audit_ledger.json` on disk.
 
 ## 10. Operational Workflow
 
@@ -177,6 +190,29 @@ This README is structured for direct reuse in academic writing:
 - Limitations & Future Work: Sections 12–13 provide constraints and extensions.
 
 ---
+
+## Webcam Face Checker
+
+If you want the live camera checker and LBPH face recognizer, install the camera extras first:
+
+```powershell
+python -m pip install -r requirements-base.txt
+python -m pip install -r requirements-camera.txt
+```
+
+The webcam checker loads the saved model from `voteguard/demo/models/face_recognizer.xml` and reuses it on later runs. Retraining is skipped automatically unless you pass `--force-retrain` to the trainer.
+
+Run the app with:
+
+```powershell
+python scripts/webcam_face_checker.py --expected-label siddhat
+```
+
+If `pytest` or `cv2` is missing, install the requirements above in the active virtual environment before running tests or the camera app.
+
+## VoteGuard Nexus Roadmap
+
+If you are adopting the broader VoteGuard Nexus architecture prompt, start with the setup and dependency checklist in [docs/VOTEGUARD_NEXUS_SETUP.md](docs/VOTEGUARD_NEXUS_SETUP.md). That document lists the software stack and shows how the current prototype maps to the target modular-monolith design.
 
 Quick Start (Prototype, Windows):
 
@@ -654,3 +690,5 @@ License
 
 ## Documentation Index
 For a structured navigation of project documents and diagrams, see `docs/README.md`.
+
+For printable builds and a grouped appendix see: `docs/appendix.md` (APPENDIX)

@@ -117,8 +117,8 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         self, name: str, image_path: Path | None
     ) -> QtWidgets.QGraphicsItemGroup:
         group = QtWidgets.QGraphicsItemGroup()
-        # Envelope-style ballot (letter): intentionally larger than the box
-        base_rect = QtCore.QRectF(0, 0, 220, 140)
+        # Letter envelope: body of the envelope
+        base_rect = QtCore.QRectF(0, 0, 105, 82)
         base_grad = QtGui.QLinearGradient(base_rect.topLeft(), base_rect.bottomLeft())
         base_grad.setColorAt(0.0, QtGui.QColor("#fffde7"))
         base_grad.setColorAt(1.0, QtGui.QColor("#f8f1d2"))
@@ -129,43 +129,67 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         )
         group.addToGroup(base)
 
-        flap_poly = QtGui.QPolygonF(
+        # Back flap outline (triangular shape visible from back) - light shade
+        back_flap = QtGui.QPolygonF(
             [
                 QtCore.QPointF(0, 0),
                 QtCore.QPointF(base_rect.width(), 0),
+                QtCore.QPointF(base_rect.width() / 2.0, 20),
+            ]
+        )
+        back_flap_item = self.scene.addPolygon(
+            back_flap,
+            QtGui.QPen(QtGui.QColor("#a1887f")),
+            QtGui.QBrush(QtGui.QColor("#efebe9")),
+        )
+        back_flap_item.setZValue(0)
+        group.addToGroup(back_flap_item)
+
+        # Front flap (open, revealing contents) - more prominent and letter-like
+        front_flap_poly = QtGui.QPolygonF(
+            [
+                QtCore.QPointF(8, 6),
+                QtCore.QPointF(base_rect.width() - 8, 6),
                 QtCore.QPointF(base_rect.width() / 2.0, 22),
             ]
         )
-        flap = self.scene.addPolygon(
-            flap_poly,
+        front_flap = self.scene.addPolygon(
+            front_flap_poly,
             QtGui.QPen(QtGui.QColor("#6d4c41")),
             QtGui.QBrush(QtGui.QColor("#f3e7b8")),
         )
-        flap.setTransformOriginPoint(base_rect.width() / 2.0, 0)
-        flap.setRotation(-18.0)
-        flap.setZValue(1)
-        group.addToGroup(flap)
+        front_flap.setZValue(2)
+        group.addToGroup(front_flap)
+
+        # Center crease line for letter fold effect
+        crease_pen = QtGui.QPen(QtGui.QColor("#d7ccc8"))
+        crease_pen.setWidth(1)
+        crease_line = self.scene.addLine(
+            base_rect.width() / 2.0, 0, base_rect.width() / 2.0, base_rect.height() + 10, crease_pen
+        )
+        crease_line.setZValue(1)
+        group.addToGroup(crease_line)
 
         # Decorative address lines
         line_pen = QtGui.QPen(QtGui.QColor("#9e9e9e"))
         line_pen.setWidth(1)
         for i in range(3):
-            y = 54 + i * 18
-            line_item = self.scene.addLine(80, y, base_rect.width() - 14, y, line_pen)
+            y = 32 + i * 11
+            line_item = self.scene.addLine(48, y, base_rect.width() - 8, y, line_pen)
             group.addToGroup(line_item)
 
         if image_path and Path(image_path).exists():
             pix = QtGui.QPixmap(str(image_path))
             if not pix.isNull():
                 pix = pix.scaled(
-                    64, 64, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+                    32, 32, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
                 )
                 img_item = self.scene.addPixmap(pix)
-                img_item.setPos(14, 18)
+                img_item.setPos(8, 10)
                 group.addToGroup(img_item)
         else:
             avatar = self.scene.addEllipse(
-                QtCore.QRectF(14, 18, 64, 64),
+                QtCore.QRectF(8, 10, 32, 32),
                 QtGui.QPen(QtGui.QColor("#666")),
                 QtGui.QBrush(QtGui.QColor("#eeeeee")),
             )
@@ -173,16 +197,16 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
 
         name_item = self.scene.addText(name or "Candidate")
         name_item.setDefaultTextColor(QtGui.QColor("#4e342e"))
-        name_item.setPos(90, 24)
+        name_item.setPos(45, 14)
         font = name_item.font()
-        font.setPointSize(12)
+        font.setPointSize(9)
         font.setBold(True)
         name_item.setFont(font)
         group.addToGroup(name_item)
 
         status_item = self.scene.addText("Vote Prepared")
         status_item.setDefaultTextColor(QtGui.QColor("#6d4c41"))
-        status_item.setPos(90, 64)
+        status_item.setPos(45, 35)
         group.addToGroup(status_item)
         # Subtle shadow on the whole envelope
         try:
@@ -197,7 +221,7 @@ class VoteVisualizerDialog(QtWidgets.QDialog):
         group.setPos(300, 60)
         # Rotate the envelope around its top center for letter-like insertion
         group.setTransformOriginPoint(base_rect.width() / 2.0, 0)
-        group.setData(0, flap)
+        group.setData(0, front_flap)
         self.scene.addItem(group)
         return group
 
@@ -400,7 +424,15 @@ def visualize_vote(
     on_done=None,
 ) -> None:
     dlg = VoteVisualizerDialog(parent)
+    # Keep a strong reference on the parent while the dialog is active.
+    if parent is not None:
+        setattr(parent, "_vote_visualizer_dialog", dlg)
     if callable(on_done):
         dlg.accepted.connect(on_done)
+    dlg.finished.connect(
+        lambda _: parent is not None
+        and hasattr(parent, "_vote_visualizer_dialog")
+        and setattr(parent, "_vote_visualizer_dialog", None)
+    )
     dlg.show()
     QtCore.QTimer.singleShot(50, lambda: dlg.run_flow(candidate_name, image_path))

@@ -29,17 +29,26 @@ from ui.vote_visualizer import visualize_vote
 
 from voteguard.adapters.audit_helper import SafeAuditLogger
 from voteguard.app import bootstrap
+from voteguard.config.election import load_election_settings
 from voteguard.core.state_machine import State
 
 
 class VotingScreen(QWidget):
     def __init__(
-        self, election_type, parties, aadhaar_id=None, voter_id=None, session_id=None
+        self,
+        election_type,
+        parties,
+        aadhaar_id=None,
+        voter_id=None,
+        session_id=None,
+        constituency=None,
     ):
         super().__init__()
         self.setWindowTitle("VoteGuard Pro - Voting Screen")
         self.setGeometry(100, 100, 800, 600)
-        self.election_type = election_type
+        self.election_settings = load_election_settings()
+        self.election_type = election_type or self.election_settings.get("election_type", "Vidhan Sabha")
+        self.constituency = constituency or self.election_settings.get("constituency", "")
         self.parties = parties
         self.aadhaar_id = aadhaar_id
         self.voter_id = voter_id
@@ -55,6 +64,17 @@ class VotingScreen(QWidget):
         # Election Type Display
         self.election_label = QLabel(f"Election Type: {self.election_type}")
         layout.addWidget(self.election_label)
+
+        self.constituency_label = QLabel(
+            f"Constituency: {self.constituency or 'Not set'}"
+        )
+        layout.addWidget(self.constituency_label)
+
+        self.meta_label = QLabel(
+            "Only enabled candidates that match the selected constituency and election type are shown."
+        )
+        self.meta_label.setWordWrap(True)
+        layout.addWidget(self.meta_label)
 
         # Timer for Continuous Display
         self.timer_label = QLabel()
@@ -77,7 +97,13 @@ class VotingScreen(QWidget):
                 layout.addWidget(img_label)
 
         # Party Buttons with logos and candidate images
-        for party in self.parties:
+        visible_parties = [party for party in self.parties if self._party_visible(party)]
+        if not visible_parties:
+            notice = QLabel("No candidates are currently configured for this constituency/election combination.")
+            notice.setWordWrap(True)
+            layout.addWidget(notice)
+
+        for party in visible_parties:
             party_layout = QHBoxLayout()
 
             # Logo (if provided)
@@ -115,6 +141,20 @@ class VotingScreen(QWidget):
 
         self.setLayout(layout)
 
+    def _party_visible(self, party):
+        party_constituency = str(party.get("constituency", "")).strip()
+        if self.constituency and party_constituency and party_constituency.lower() != self.constituency.lower():
+            return False
+
+        allowed_types = party.get("election_types") or party.get("election_type") or []
+        if isinstance(allowed_types, str):
+            allowed_types = [item.strip() for item in allowed_types.split(",") if item.strip()]
+        if allowed_types:
+            normalized = {str(item).strip().lower() for item in allowed_types}
+            if self.election_type and self.election_type.strip().lower() not in normalized:
+                return False
+        return True
+
     def update_time(self):
         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.timer_label.setText(f"Current Time: {current_time}")
@@ -129,6 +169,7 @@ class VotingScreen(QWidget):
                         self.parentWidget(), "session_id", self.session_id
                     ),
                     "election_type": self.election_type,
+                    "constituency": self.constituency,
                 },
             )
             # State to SECURE_STORAGE (conceptual step)
@@ -166,6 +207,7 @@ class VotingScreen(QWidget):
                         self.parentWidget(), "session_id", self.session_id
                     ),
                     "election_type": self.election_type,
+                    "constituency": self.constituency,
                     "receipt_id": receipt.receipt_id,
                 },
             )
